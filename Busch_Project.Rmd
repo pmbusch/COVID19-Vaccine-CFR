@@ -1,0 +1,433 @@
+---
+title: "WHO COVID Data"
+author: "Pablo Busch, 918913603"
+date: "March 2022"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+    code_folding: hide
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+# knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = F, warning=F)
+```
+
+```{r}
+# libraries
+library(tidyverse) # data manipulation
+library(scales) 
+library(lubridate) #time format
+library(gridExtra) # plot manipulation
+theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
+```
+
+
+# Abstract 
+
+- Background: Covid Pandemic and Vaccines
+- Key question: differences in case moratlity rate for countries with higher vaccination rates
+- Data used: WHO and vaccination data
+- Results
+- Limitations
+- Conclusion
+
+
+# Introduction
+
+<span style='color:blue'> In this section, state the questions of interest, motivation of this analysis, and potential impact of your results. You can simply rephrase the Project Description for minimal efforts. You can also cite published papers or credible articles on the Internet.  </span>
+
+
+- COVID-19 is an on-going pandemic with approximately 5 million deaths world-wide.
+- Methods to mitigate the pandemic: quarantines, social distancing, masks, and more recently vaccination against COVID-19.
+- Key question.
+Study the effect of vaccines on the COVID-19 case fatality rate (CFR) (deaths/cases). The key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). In previous studies COVID-19 vaccines have been associated with lower CFRs (Liang et al. 2021).
+
+
+ 
+# Background 
+
+<span style='color:blue'> In this section, explain the source of data, target population, sampling mechanism, and variables in this data set. You can briefly review  existing research or known results, which will help you in the analysis. 
+</span> 
+
+As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accesible to the general public and can be downloaded [here](https://covid19.who.int/info). The data contains COVID-19 daily related cases and deaths for a variety of countries. Here are the resolutions:
+
+- Temporal resolution: Day, from 2020 (January) to 2022 (present)
+- Geographical resolution: Country (237 unique) and world region (7 in total)
+- Outcome to study:
+  + Case Fatality Rate (CFR): Measurement of amount of patients with COVID-19 that died ($CFR=\frac{Deaths}{Cases}$)
+  
+We are interested in exploring the effect of vaccines on the case fatality rate for COVID-19. Our World in Data is an organization that compiles country level data from multiple sources to make research more easy. They have a made a strong effort to compile a database with the total number of people fully vaccinated (people who received all doses prescribed by the vaccination protocol) by date and country. The vaccination data is available [here](https://ourworldindata.org/covid-vaccinations), with a public [GitHub](https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations). \newline
+
+# Method
+
+JUSTIFICATION!
+- Method for summarizing data: 
+  - Monthly 9+ shif
+- See other comments
+
+I am going to convert the data to a panel data, that is a cross-sectional ecological study (main unit will be countries) over time, using each month as summary. The model to be analyzed will have the following form, as a panel data:
+
+$$
+Y_{i,t}=\beta_0+\beta_1 (Vaccination \: status)_{i,t}+\beta_2 (Country)_i+\beta_3 (Month)_t+\epsilon_{i,t}
+$$
+
+Where:
+
+- i: Index for each specific country
+- t: Index of month, 25 in total. January 2020 to January 2022.
+- $Y_{i,t}$ is the case fatality rate per country “i” on month "t"
+- $\beta_1$ is the effects of each vaccination level on the case fatality rate. I would try two models: one with vaccination level as numeric (percentage of people fully vaccinated) and other with categorical levels, probably classified into 5 groups according to the percentage of people fully vaccinated: [0-20%], [20%-40%].
+- $\beta_2$ is the specific effect of the pandemic in each country
+- $\beta_3$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
+- Other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
+
+
+
+Main hypothesis to test: $H_0:\beta_2=0$ vs $H_A:\beta_2 \neq 0$.
+
+Sensitivity analysis to be conducted.
+
+# Results
+
+## Descriptive analysis 
+
+<span style='color:blue'> 
+Select the variables you find relevant based on your understanding in the Background section. Summarize univariate descriptive statistics for the selected variables (mean, standard deviations, missing values,  quantiles, etc.). You can create the table using functions in base `R`, or use packages (see, e.g., [this note](https://cran.r-project.org/web/packages/qwraps2/vignettes/summary-statistics.html)). </span>
+
+### COVID-19
+
+```{r}
+# load WHO COVID-19 data
+covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
+```
+
+
+```{r}
+# Data exploration
+# covid %>% names()
+# covid$Date_reported %>% range()
+# covid$Country %>% unique()
+# covid$WHO_region %>% unique()
+
+#### Countries and regions included
+# covid %>% 
+#   group_by(WHO_region,Country) %>% 
+#   summarize(n=n()) %>% 
+#   pull(WHO_region) %>% table()
+```
+
+#### Time series of COVID-19 Cases and deaths
+  
+Here is a small glance at the data summarized for the whole world, showing more than 4 million deaths worldwide, with more than 300 million infected. We can also observe important daily variations, probably associated to each mutation of COVID-19.
+
+```{r}
+p_region <- covid %>% 
+  group_by(Date_reported,WHO_region) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% 
+  pivot_longer(c(cases,deaths), names_to = "key", values_to = "value") %>% 
+  ggplot(aes(Date_reported,value, col=WHO_region,group=WHO_region))+
+  geom_line()+
+  facet_wrap(~key,ncol=1,scales = "free_y")+
+  labs(x="Date",y="")+
+  scale_y_continuous(labels=function(x) format(x, 
+                                               big.mark = " ", 
+                                               scientific = FALSE))+
+  scale_x_date(labels = date_format("%m-%Y"),
+               date_breaks = "3 month")
+```
+
+
+```{r}
+p_world <- covid %>% 
+  group_by(Date_reported) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% 
+  pivot_longer(c(cases,deaths), names_to = "key", values_to = "value") %>% 
+  ggplot(aes(Date_reported,value,group=1))+
+  geom_line()+
+  facet_wrap(~key,ncol=1,scales = "free_y")+
+  labs(x="Date",y="")+
+  scale_y_continuous(labels=function(x) format(x, 
+                                               big.mark = " ", 
+                                               scientific = FALSE))+
+  scale_x_date(labels = date_format("%m-%Y"),
+               date_breaks = "6 month")
+```
+
+Same graph for the world, but cumulative:
+
+```{r}
+p_world_cum <- covid %>% 
+  group_by(Date_reported) %>% 
+  summarise(Cum_Cases=sum(Cumulative_cases),
+            Cum_Deaths=sum(Cumulative_deaths)) %>% 
+  pivot_longer(c(Cum_Cases,Cum_Deaths), 
+               names_to = "key", values_to = "value") %>% 
+  ggplot(aes(Date_reported,value,group=1))+
+  geom_line()+
+  facet_wrap(~key,ncol=1,scales = "free_y")+
+  labs(x="Date",y="")+
+  scale_y_continuous(labels=function(x) format(x, 
+                                               big.mark = " ", 
+                                               scientific = FALSE))+
+  scale_x_date(labels = date_format("%m-%Y"),
+               date_breaks = "6 month")
+```
+
+
+```{r}
+## combine graphs
+grid.arrange(p_world,p_world_cum,ncol=2)
+```
+
+
+#### Case Mortality Rate COVID-19
+
+Our main outcome of interest is the case fatality rate for COVID-19. Let's look at the total case fatality rate for COVID-19 for the entire pandemic period:
+
+```{r}
+covid %>% 
+  group_by(WHO_region,Country) %>% 
+  summarise(cases=max(Cumulative_cases),
+            deaths=max(Cumulative_deaths)) %>% ungroup() %>% 
+  mutate(cfr=deaths/cases) %>% #case fatality rate
+  filter(WHO_region!="Other") %>% 
+  ggplot(aes(WHO_region,cfr))+
+  geom_jitter(alpha=0.5)+
+  geom_boxplot(alpha=0.5,outlier.alpha = 0)+
+  coord_flip()+
+  scale_y_continuous(labels = scales::percent)+
+  labs(x="WHO Region",y="Case Fatality Rate COVID-19 [%]",
+       caption = "Cumulated cases and deaths for the period Janauary 2020 to February 2022")
+```
+
+We observe a clear outlier: Yemem with a case fatality rate of almost 20%. We can see that the case fatality rate is around 2% for the rest of the countries, with important variations across each country and WHO regions. \newline
+
+Let's look at the case fatality rate over time. I calculated the metric over different periods of time, splitting each year in a half:
+
+```{r}
+## Create time factor variable, splitting years in half
+covid <- covid %>% 
+  mutate(period=case_when(
+    Date_reported < as.Date("2020-07-01") ~ "2020-1",
+    Date_reported < as.Date("2021-01-01") ~ "2020-2",
+    Date_reported < as.Date("2021-07-01") ~ "2021-1",
+    Date_reported < as.Date("2022-01-01") ~ "2021-2",
+    Date_reported < as.Date("2022-07-01") ~ "2022-1",
+    T ~ "other") %>% factor(levels=c("2020-1","2020-2","2021-1",
+                                        "2021-2","2022-1")),
+    month=paste(year(Date_reported),month(Date_reported),sep="-"))
+
+covid %>% 
+  group_by(WHO_region,Country,period) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% ungroup() %>% 
+  mutate(cfr=deaths/cases) %>% #case fatality rate
+  filter(WHO_region!="Other") %>% 
+  ggplot(aes(WHO_region,cfr,
+             # fill=period,col=period
+             ))+
+  geom_jitter(alpha=0.5)+
+  geom_boxplot(alpha=0.5,outlier.alpha = 0)+
+  facet_wrap(~period)+
+  coord_flip()+
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0,0.1),
+                     # breaks=c(0,0.05,0.1)
+                     )+
+  labs(x="WHO Region",y="Case Fatality Rate COVID-19 [%]",
+       caption = "Cumulated cases and deaths for the period Janauary 2020 to February 2022")
+
+```
+
+We observe a higher variation in the early times of the pandemic, and a posterior reduction and stabilization (less variance) of the case fatality rate in the most recent times.
+
+
+### Vaccination Data
+```{r}
+## Load vaccination data
+vaccination <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv")
+
+
+# Join countries from both data sources
+countries_covid <- unique(covid$Country)
+countries_vaccine <- unique(vaccination$location)
+
+countries_vaccine <- data.frame(countries_vaccine=countries_vaccine,
+                             x=1)
+countries_covid <- data.frame(countries_covid=countries_covid,
+                              y=2)
+
+# are the codes similar?
+# countries_vaccine %>%
+#   left_join(countries_covid,by=c("countries_vaccine"="countries_covid")) %>% 
+#   pull(y) %>% sum(na.rm=T)/2
+# 190 countries match
+```
+
+Merging both datasets (WHO and OurWorldinData) based in the country name I got a final table containing information for 190 countries.
+
+```{r}
+### Time series of vaccination data
+# Let's look at a spageti plot of the vaccination time series across coutnries:
+# vaccination$date %>% range()
+
+# vaccination %>% 
+#   filter(location=="Chile") %>%
+#   ggplot(aes(date,people_fully_vaccinated_per_hundred),group=location)+
+#   geom_line(alpha=.5)+
+#   labs(x="",y="People Fully Vaccinated per 100 people")
+```
+
+### CFR vs Vaccination Rates
+
+Let's make a comparison per period of time of percentage of vaccination and case fatality rate. In order to make the comparison over time, we aggregated the CFR data and vaccination rates over each month. This means that our basic unit of analysis is a country in a given month, with data on the CFR (deaths/cases) and average vaccination rate (people fully vaccinated per 100 people) over each month. The following boxplot shows the case fatality rate over different levels of vaccination.
+
+```{r}
+## need to summarize covid data to periods of time:
+covid_period <- covid %>% 
+  group_by(WHO_region,Country,month) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% ungroup() %>% 
+  mutate(cfr=deaths/cases)
+
+# same for vaccination data, we take the average over each period of time
+
+## Create time factor variable, splitting years in half
+vaccination <- vaccination %>% 
+  mutate(period=case_when(
+    date < as.Date("2020-07-01") ~ "2020-1",
+    date < as.Date("2021-01-01") ~ "2020-2",
+    date < as.Date("2021-07-01") ~ "2021-1",
+    date < as.Date("2022-01-01") ~ "2021-2",
+    date < as.Date("2022-07-01") ~ "2022-1",
+    T ~ "other") %>% factor(levels=c("2020-1","2020-2","2021-1",
+                                        "2021-2","2022-1")),
+    month=paste(year(date),month(date),sep="-"))
+
+# take the average over the period
+vaccination_period <- vaccination %>% 
+  mutate(vaccinated=replace_na(people_fully_vaccinated_per_hundred,0)) %>% 
+  group_by(location,month) %>% 
+  summarise(vaccinated=
+              mean(vaccinated,na.rm=T)) %>% ungroup() 
+
+# join based on location
+df <- vaccination_period %>% 
+  left_join(covid_period, by=c("location"="Country",
+                               "month"))
+```
+
+
+```{r}
+p_vac_cfr_point <- df %>% 
+  # filter(location=="Chile") %>%
+  ggplot(aes(vaccinated,cfr,col=WHO_region))+
+  geom_point()+
+  # geom_smooth()+
+    scale_y_continuous(labels = scales::percent,
+                     limits = c(0,0.1)
+                     )+
+  labs(x="People Fully Vaccinated per 100 people",
+       y="Case Fatality Rate COVID-19 [%]",
+       caption="Each point represents a country summary statistics each month")
+```
+
+
+```{r}
+p_vac_cfr_box <- df %>% 
+  mutate(vaccinated_level=case_when(
+    vaccinated<25 ~ "0%-25%",
+    vaccinated<50 ~ "25%-50%",
+    vaccinated<75 ~ "50%-75%",
+    vaccinated<100 ~ "75%-100%",
+    T ~"other") %>% factor(levels=c("0%-25%","25%-50%",
+                                    "50%-75%","75%-100%"))) %>% 
+  filter(!(is.na(WHO_region))) %>% 
+  ggplot(aes(WHO_region,cfr,col=vaccinated_level))+
+  geom_boxplot()+
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0,0.1)
+  )+
+  theme(axis.text.x = element_text(angle = -45,vjust=-0.5))+
+  labs(col="Percentage of People \n Fully Vaccinated [%]",
+       x="WHO Region",
+       y="Case Fatality Rate COVID-19 [%]",
+       caption="Each point represents a country summary statistics each month")
+p_vac_cfr_box
+```
+
+We observe for each region a clear reduction in the CFR for COVID-19, both in the average value and in the dispersion across countries in each month. This reduction occurs in higher intensity with vaccination rates above 50%. We also observe that some regions are left unvaccinated, like Africa.
+
+
+## Inferential analysis 
+
+
+
+## Sensitivity analysis 
+
+
+- <span style='color:blue'> Examine the residual plot of the fitted model.  You need to explain your findings in these plots (e.g., whether assumptions are plausible). </span>
+
+- <span style='color:blue'>  You can find tests for some assumptions by searching the key words "test" and the corresponding assumptions. For instance, to test the equal variance assumption, there exist an [F-test](https://en.wikipedia.org/wiki/F-test_of_equality_of_variances) and [Levene's test](https://en.wikipedia.org/wiki/Levene%27s_test). </span> 
+
+- <span style='color:blue'>  For alternative methods, you can explore 
+  - other summary measures (say, median instead of mean)
+  - or nonparametric approach (ranks within school, with [Friedman test](https://en.wikipedia.org/wiki/Friedman_test) )
+and check if your answers to the questions of interest change. 
+</span>
+
+
+# Discussion 
+
+- A brief recap of this project. 
+- Findings in the inferential analysis
+- Suggestions for future research and/or policy making given your findings. 
+
+
+- Caveats of the current analysis.
+
+
+The model suffers from some inherent problems. Here are the problems and a possible workaround:
+
+- **Spatial correlation**: Perhaps I can add the variable region in the data set to control for continental effects on COVID-19, under the assumption that countries in the same region share more immigration, resulting in a jointly COVID-19 spread.
+- **Delay due to detection**: There is an approximate two weeks difference between detected cases and deaths, due to evolution of the disease. The reason I am grouping whole months is to capture all deaths and cases over a longer period of time, to obtain a more accurate estimate of the case fatality rate. I may consider grouping per quarters instead. A possible workaround I may implement is to shift all deaths two weeks in advance, to make it more comparable to cases (to obtain the ratio CFR).
+- **Time series autocorrelation**: I would need to test for the presence of autocorrelation in the panel data, and if present I will need to correct them, perhaps with the addition of the case mortality rate for the previous peirod (dynamic model).
+- **Different demographics**: If I find reliable sources of population per country by age, I may stratify the analysis by age cohort, using the following age groups: [0-18], [19-50], [51-70], [70+].
+- **Accessibility to tests, vaccines, health care resources**: Perhaps I can add confounding variables to control for socioeconomic conditions per country, like the income per person.
+- **Different size of each control unit**: Each country has a different size, so they shouldn’t weight the same in my regression analysis. Perhaps I can use population to weight each country observation in the data set.
+- **Distribution of the outcome variable**: My main outcome variable, case fatality rate, represent the count of deaths over the total cases. I may consider using a Poisson link function, or even a negative binomial distribution as it relax the assumption of equality of mean and variance.
+
+# Conclusion
+
+# Acknowledgement {-}
+
+I acknowledge the instructor Professor Shizhe Chen and his materials for statistical methods of research. i also acknowledge the following classmates for their valuable feedback and comments during the project development: Yinan Cheng, Shuyu Guo and Kyung Jin Lee.
+
+# Reference {-}
+
+- - Course Notes STA207 UC Davis Winter Quarter 2022. Professor Shizhe Chen. Chapter 4 - Analysis of Variance. 
+
+# Session info {-}
+
+<span style='color:blue'>
+Report information of your `R` session for reproducibility. 
+</span> 
+
+
+```{r}
+sessionInfo()
+```
+
+
+# Appendix - R Code used {-}
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
+
