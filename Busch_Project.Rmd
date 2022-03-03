@@ -13,7 +13,8 @@ output:
     code_folding: hide
 ---
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(fig.pos = 'H')
+# knitr::opts_chunk$set(fig.pos = 'H')
+knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = T, warning=F)
 # knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = F, warning=F)
 ```
 
@@ -23,14 +24,17 @@ library(tidyverse) # data manipulation
 library(scales) 
 library(lubridate) #time format
 library(gridExtra) # plot manipulation
+library(skimr) # summary statistics
+library(flextable) #table format for hhtml
 theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 ```
 
 
+
 # Abstract 
 
-- Background: Covid Pandemic and Vaccines
-- Key question: differences in case moratlity rate for countries with higher vaccination rates
+- Background: COVID-19 Pandemic and Vaccines
+- Key question: differences in case mortality rate for countries with higher vaccination rates
 - Data used: WHO and vaccination data
 - Results
 - Limitations
@@ -39,22 +43,13 @@ theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 
 # Introduction
 
-<span style='color:blue'> In this section, state the questions of interest, motivation of this analysis, and potential impact of your results. You can simply rephrase the Project Description for minimal efforts. You can also cite published papers or credible articles on the Internet.  </span>
+Since 2020 the world has been facing a pandemic, caused by the COVID-19. The virus cause an inflammatory respiratory stress on the human body. In the two years of the pandemic, approximately 5 million people have died, and more than 400 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A year ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
 
+This report seek to study the effect of vaccines on the COVID-19 case fatality rate (CFR) (deaths/cases). The key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). In previous studies COVID-19 vaccines have been associated with lower CFRs (Liang et al. 2021).
 
-- COVID-19 is an on-going pandemic with approximately 5 million deaths world-wide.
-- Methods to mitigate the pandemic: quarantines, social distancing, masks, and more recently vaccination against COVID-19.
-- Key question.
-Study the effect of vaccines on the COVID-19 case fatality rate (CFR) (deaths/cases). The key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). In previous studies COVID-19 vaccines have been associated with lower CFRs (Liang et al. 2021).
-
-
- 
 # Background 
 
-<span style='color:blue'> In this section, explain the source of data, target population, sampling mechanism, and variables in this data set. You can briefly review  existing research or known results, which will help you in the analysis. 
-</span> 
-
-As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accesible to the general public and can be downloaded [here](https://covid19.who.int/info). The data contains COVID-19 daily related cases and deaths for a variety of countries. Here are the resolutions:
+As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accessible to the general public ([link to download](https://covid19.who.int/info)). The data contains COVID-19 daily related cases and deaths for a variety of countries. Here are the resolutions:
 
 - Temporal resolution: Day, from 2020 (January) to 2022 (present)
 - Geographical resolution: Country (237 unique) and world region (7 in total)
@@ -65,12 +60,16 @@ We are interested in exploring the effect of vaccines on the case fatality rate 
 
 # Method
 
+## Statistical Model
 JUSTIFICATION!
 - Method for summarizing data: 
-  - Monthly 9+ shif
+  - Monthly 9+ shift
 - See other comments
+- RANDOM EFFECTS FOR COUNRTY?
 
-I am going to convert the data to a panel data, that is a cross-sectional ecological study (main unit will be countries) over time, using each month as summary. The model to be analyzed will have the following form, as a panel data:
+The time series data for COVID-19 cases and deaths, and vaccination rates per country was converted to a panel data: that is a cross-sectional ecological study (main observational unit is the monthly variables per country). CFR and vaccination rates were summarized to monthly averages to balance the trade-off between number of observations and accuracy of predictions. A monthly average allow us to have 25 time observations per country, which the time-window captures the effect in each given month. \newline
+
+The model to be analyzed will have the following form, as a panel data:
 
 $$
 Y_{i,t}=\beta_0+\beta_1 (Vaccination \: status)_{i,t}+\beta_2 (Country)_i+\beta_3 (Month)_t+\epsilon_{i,t}
@@ -81,44 +80,184 @@ Where:
 - i: Index for each specific country
 - t: Index of month, 25 in total. January 2020 to January 2022.
 - $Y_{i,t}$ is the case fatality rate per country “i” on month "t"
-- $\beta_1$ is the effects of each vaccination level on the case fatality rate. I would try two models: one with vaccination level as numeric (percentage of people fully vaccinated) and other with categorical levels, probably classified into 5 groups according to the percentage of people fully vaccinated: [0-20%], [20%-40%].
+- $\beta_1$ is the effects of each vaccination level on the case fatality rate. Two models will be fitted with different vaccination status variables:
+  - Numeric: Average of the percentage of people fully vaccinated for the month.
+  - Categorical: The average percentage of people fully vaccinate is classified into 4 groups: [0-25%; 25%-50%; 50%-75%; 75%-100%].
 - $\beta_2$ is the specific effect of the pandemic in each country
 - $\beta_3$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
 - Other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
 
+The main hypothesis to test the effect of the vaccination level of each country on the CFR for COVID-19, that is to test $H_0:\beta_2=0$ vs $H_A:\beta_2 \neq 0$.
+
+Sensitivity analysis to be conducted. (?)
 
 
-Main hypothesis to test: $H_0:\beta_2=0$ vs $H_A:\beta_2 \neq 0$.
+## Data preparation
 
-Sensitivity analysis to be conducted.
+Both datasets (WHO and OurWorldinData) were merged based in the country name, resulting in a match of 167 countries in total, for which we got reliable information on COVID-19 cases and deaths, ant vaccination status for .\newline
+
+To estimate the CFR for each month, only countries with at least 100 cases and more than 10 deaths were included, to improve the robustness of the analysis.
+
 
 # Results
 
-## Descriptive analysis 
-
-<span style='color:blue'> 
-Select the variables you find relevant based on your understanding in the Background section. Summarize univariate descriptive statistics for the selected variables (mean, standard deviations, missing values,  quantiles, etc.). You can create the table using functions in base `R`, or use packages (see, e.g., [this note](https://cran.r-project.org/web/packages/qwraps2/vignettes/summary-statistics.html)). </span>
-
-### COVID-19
-
 ```{r}
+# COVID-19 Data -----
 # load WHO COVID-19 data
 covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
+
+# Data wrangling (preparation for analysis)
+# filter to remove March 2022
+covid <- covid %>% filter(Date_reported<"2022-03-01") 
+
+## Create time factor variable, splitting years in half
+halfYear_levels <- c("2020-1","2020-2","2021-1",
+                     "2021-2","2022-1")
+month_levels <- c("2020-1","2020-2","2020-3","2020-4","2020-5",
+                  "2020-6","2020-7","2020-8","2020-9","2020-10",
+                  "2020-11","2020-12","2021-1","2021-2","2021-3",
+                  "2021-4","2021-5","2021-6","2021-7","2021-8",
+                  "2021-9","2021-10","2021-11","2021-12",
+                  "2022-1","2022-2")
+covid <- covid %>%  
+  mutate(period=case_when(
+    Date_reported < as.Date("2020-07-01") ~ "2020-1",
+    Date_reported < as.Date("2021-01-01") ~ "2020-2",
+    Date_reported < as.Date("2021-07-01") ~ "2021-1",
+    Date_reported < as.Date("2022-01-01") ~ "2021-2",
+    Date_reported < as.Date("2022-07-01") ~ "2022-1",
+    T ~ "other") %>% factor(levels=halfYear_levels),
+    month=paste(year(Date_reported),month(Date_reported),sep="-") %>% 
+      factor(levels =month_levels))
+
+# clean data: remove negative cases and deaths
+covid <- covid %>% 
+  filter(New_cases>=0 & New_deaths>=0)
+
+## need to summarize COVID data to periods of time: MONTHS
+covid_period <- covid %>% 
+  group_by(WHO_region,Country,month) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% ungroup() %>% 
+  filter(cases>99 & deaths>9) %>%  # filter to remove unreliable periods
+  mutate(cfr=deaths/cases)  # we calculate CFR for each given month
+
+# VACCINATION DATA -----
+## Load vaccination data
+vaccination <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv")
+
+# Filter to remove March 2022
+vaccination <- vaccination %>% 
+  filter(date<"2022-03-01")
+
+# We summarized vaccination data based on the a time period: MONTH
+## Create time factor variable, splitting years in half
+vaccination <- vaccination %>% 
+  mutate(period=case_when(
+    date < as.Date("2020-07-01") ~ "2020-1",
+    date < as.Date("2021-01-01") ~ "2020-2",
+    date < as.Date("2021-07-01") ~ "2021-1",
+    date < as.Date("2022-01-01") ~ "2021-2",
+    date < as.Date("2022-07-01") ~ "2022-1",
+    T ~ "other") %>% factor(levels=halfYear_levels),
+    month=paste(year(date),month(date),sep="-") %>% factor(levels=month_levels))
+
+# take the average over the period: NA is 0
+vaccination_period <- vaccination %>% 
+  mutate(vaccinated=replace_na(people_fully_vaccinated_per_hundred,0)) %>% 
+  group_by(location,month) %>% 
+  summarise(vaccinated=mean(vaccinated,na.rm=T)) %>% ungroup() 
+
+# JOIN DATA -----
+
+## Change countries name to increase matching (manually, based on visual inspection)
+covid <- covid %>% 
+  mutate(Country=case_when(
+    Country=="Bolivia (Plurinational State of)" ~ "Bolivia",
+    Country=="Bonaire" ~ "Bonaire Sint Eustatius and Saba",
+    Country=="Brunei Darussalam" ~ "Brunei",
+    Country=="Cabo Verde" ~ "Cape Verde",
+    Country=="Côte d’Ivoire" ~ "Cote d'Ivoire",
+    # str_detect(Country,"C.te d.Ivoire") ~ "Cote d'Ivoire", 
+    Country=="Curaçao" ~ "Curacao",
+    # str_detect(Country,"Cura.ao") ~ "Curacao",
+    Country=="Democratic Republic of the Congo" ~ "Democratic Republic of Congo",
+    Country=="Falkland Islands (Malvinas)" ~ "Falkland Islands",
+    Country=="Faroe Islands" ~ "Faeroe Islands",
+    Country=="Iran (Islamic Republic of)" ~ "Iran",
+    Country=="Kosovo[1]" ~ "Kosovo",
+    Country=="Lao People's Democratic Republic" ~ "Laos",
+    Country=="occupied Palestinian territory, including east Jerusalem" ~ "Palestine",
+    Country=="Pitcairn Islands" ~ "Pitcairn",
+    Country=="Republic of Korea" ~ "South Korea",
+    Country=="Republic of Moldova" ~ "Moldova",
+    Country=="Russian Federation" ~ "Russia",
+    Country=="Sint Maarten" ~ "Sint Maarten (Dutch part)",
+    Country=="Syrian Arab Republic" ~ "Syria",
+    Country=="The United Kingdom" ~ "United Kingdom",
+    Country=="Timor-Leste" ~ "Timor",
+    Country=="United Republic of Tanzania" ~ "Tanzania",
+    Country=="United States of America" ~ "United States",
+    Country=="Venezuela (Bolivarian Republic of)" ~ "Venezuela",
+    Country=="Viet Nam" ~ "Vietnam",
+    T ~ Country))
+
+# Join countries from both data sources
+# countries_covid <- unique(covid$Country)
+# countries_vaccine <- unique(vaccination$location)
+# 
+# countries_vaccine <- data.frame(countries_vaccine=countries_vaccine,
+#                              x=1)
+# countries_covid <- data.frame(countries_covid=countries_covid,
+#                               y=1)
+
+# are the codes similar?
+# countries_vaccine %>%
+#   left_join(countries_covid,by=c("countries_vaccine"="countries_covid")) %>%
+#   pull(y) %>% sum(na.rm=T)
+# 215 countries match
+
+
+# join based on location - I join it to the Vaccination, so I can get months with vaccine information for each country
+df <- vaccination_period %>% 
+  left_join(covid_period, by=c("location"="Country",
+                               "month")) %>% 
+  filter(cases>=0 & deaths>=0 & !(is.na(vaccinated)))
+
+## More convenient labels for region
+df <- df %>% 
+  mutate(region_name=case_when(
+    WHO_region=="EMRO" ~ "Eastern Mediterranean",
+    WHO_region=="EURO" ~ "Europe",
+    WHO_region=="AFRO" ~ "Africa",
+    WHO_region=="AMRO" ~ "Americas",
+    WHO_region=="WPRO" ~ "Western Pacific",
+    WHO_region=="SEARO" ~ "South-East Asia") %>%
+      factor(levels=c("Americas","Europe","Eastern Mediterranean",
+                      "Western Pacific","South-East Asia","Africa")),
+  location=as.factor(location))
+
+# Vaccination level factor variable
+df <- df %>% 
+  mutate(vaccinated_level=case_when(
+    vaccinated<25 ~ "0%-25%",
+    vaccinated<50 ~ "25%-50%",
+    vaccinated<75 ~ "50%-75%",
+    vaccinated<100 ~ "75%-100%",
+    T ~"other") %>% factor(levels=c("0%-25%","25%-50%",
+                                    "50%-75%","75%-100%"))) 
+
 ```
 
 
-```{r}
-# Data exploration
-# covid %>% names()
-# covid$Date_reported %>% range()
-# covid$Country %>% unique()
-# covid$WHO_region %>% unique()
+## Descriptive analysis 
 
-#### Countries and regions included
-# covid %>% 
-#   group_by(WHO_region,Country) %>% 
-#   summarize(n=n()) %>% 
-#   pull(WHO_region) %>% table()
+### COVID-19
+
+Let's provide some summary statistics for the COVID-19 cases and deaths data.
+
+```{r}
+skim_without_charts(df)
 ```
 
 #### Time series of COVID-19 Cases and deaths
@@ -126,64 +265,43 @@ covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
 Here is a small glance at the data summarized for the whole world, showing more than 4 million deaths worldwide, with more than 300 million infected. We can also observe important daily variations, probably associated to each mutation of COVID-19.
 
 ```{r}
-p_region <- covid %>% 
-  group_by(Date_reported,WHO_region) %>% 
-  summarise(cases=sum(New_cases),
-            deaths=sum(New_deaths)) %>% 
+p_region <- df %>% 
   pivot_longer(c(cases,deaths), names_to = "key", values_to = "value") %>% 
-  ggplot(aes(Date_reported,value, col=WHO_region,group=WHO_region))+
-  geom_line()+
+  ggplot(aes(month,value))+
+  # geom_line()+
+  geom_boxplot()+
   facet_wrap(~key,ncol=1,scales = "free_y")+
   labs(x="Date",y="")+
   scale_y_continuous(labels=function(x) format(x, 
                                                big.mark = " ", 
-                                               scientific = FALSE))+
-  scale_x_date(labels = date_format("%m-%Y"),
-               date_breaks = "3 month")
+                                               scientific = FALSE),
+                     trans = "log10")
+p_region
+
+
+p_cfr_time <- df %>% 
+  ggplot(aes(month,cfr))+
+  geom_boxplot()+
+   scale_y_continuous(labels = scales::percent,
+                      limits = c(0,0.1))+
+  labs(x="Date",y="Case Fatality Rate COVID-19 [%]")+
+  theme(axis.text.x = element_text(angle =-45,vjust=-0.5))
+# p_cfr_time
+
+p_vacc_time <- df %>% 
+  ggplot(aes(month,vaccinated))+
+  geom_boxplot()+
+  labs(x="Date",y="People Fully Vaccinated per 100 people")+
+  theme(axis.text.x = element_text(angle =-45,vjust=-0.5))
+# p_vacc_time
+
 ```
 
-
-```{r}
-p_world <- covid %>% 
-  group_by(Date_reported) %>% 
-  summarise(cases=sum(New_cases),
-            deaths=sum(New_deaths)) %>% 
-  pivot_longer(c(cases,deaths), names_to = "key", values_to = "value") %>% 
-  ggplot(aes(Date_reported,value,group=1))+
-  geom_line()+
-  facet_wrap(~key,ncol=1,scales = "free_y")+
-  labs(x="Date",y="")+
-  scale_y_continuous(labels=function(x) format(x, 
-                                               big.mark = " ", 
-                                               scientific = FALSE))+
-  scale_x_date(labels = date_format("%m-%Y"),
-               date_breaks = "6 month")
-```
-
-Same graph for the world, but cumulative:
-
-```{r}
-p_world_cum <- covid %>% 
-  group_by(Date_reported) %>% 
-  summarise(Cum_Cases=sum(Cumulative_cases),
-            Cum_Deaths=sum(Cumulative_deaths)) %>% 
-  pivot_longer(c(Cum_Cases,Cum_Deaths), 
-               names_to = "key", values_to = "value") %>% 
-  ggplot(aes(Date_reported,value,group=1))+
-  geom_line()+
-  facet_wrap(~key,ncol=1,scales = "free_y")+
-  labs(x="Date",y="")+
-  scale_y_continuous(labels=function(x) format(x, 
-                                               big.mark = " ", 
-                                               scientific = FALSE))+
-  scale_x_date(labels = date_format("%m-%Y"),
-               date_breaks = "6 month")
-```
 
 
 ```{r}
 ## combine graphs
-grid.arrange(p_world,p_world_cum,ncol=2)
+grid.arrange(p_cfr_time,p_vacc_time,ncol=1)
 ```
 
 
@@ -192,19 +310,15 @@ grid.arrange(p_world,p_world_cum,ncol=2)
 Our main outcome of interest is the case fatality rate for COVID-19. Let's look at the total case fatality rate for COVID-19 for the entire pandemic period:
 
 ```{r}
-covid %>% 
-  group_by(WHO_region,Country) %>% 
-  summarise(cases=max(Cumulative_cases),
-            deaths=max(Cumulative_deaths)) %>% ungroup() %>% 
-  mutate(cfr=deaths/cases) %>% #case fatality rate
+df %>% 
   filter(WHO_region!="Other") %>% 
-  ggplot(aes(WHO_region,cfr))+
+  ggplot(aes(region_name,cfr))+
   geom_jitter(alpha=0.5)+
   geom_boxplot(alpha=0.5,outlier.alpha = 0)+
   coord_flip()+
-  scale_y_continuous(labels = scales::percent)+
+  scale_y_continuous(labels = scales::percent, limits=c(0,0.1))+
   labs(x="WHO Region",y="Case Fatality Rate COVID-19 [%]",
-       caption = "Cumulated cases and deaths for the period Janauary 2020 to February 2022")
+       caption = "Cumulated cases and deaths for the period December 2020 to February 2022")
 ```
 
 We observe a clear outlier: Yemem with a case fatality rate of almost 20%. We can see that the case fatality rate is around 2% for the rest of the countries, with important variations across each country and WHO regions. \newline
@@ -212,18 +326,6 @@ We observe a clear outlier: Yemem with a case fatality rate of almost 20%. We ca
 Let's look at the case fatality rate over time. I calculated the metric over different periods of time, splitting each year in a half:
 
 ```{r}
-## Create time factor variable, splitting years in half
-covid <- covid %>% 
-  mutate(period=case_when(
-    Date_reported < as.Date("2020-07-01") ~ "2020-1",
-    Date_reported < as.Date("2021-01-01") ~ "2020-2",
-    Date_reported < as.Date("2021-07-01") ~ "2021-1",
-    Date_reported < as.Date("2022-01-01") ~ "2021-2",
-    Date_reported < as.Date("2022-07-01") ~ "2022-1",
-    T ~ "other") %>% factor(levels=c("2020-1","2020-2","2021-1",
-                                        "2021-2","2022-1")),
-    month=paste(year(Date_reported),month(Date_reported),sep="-"))
-
 covid %>% 
   group_by(WHO_region,Country,period) %>% 
   summarise(cases=sum(New_cases),
@@ -243,46 +345,25 @@ covid %>%
                      )+
   labs(x="WHO Region",y="Case Fatality Rate COVID-19 [%]",
        caption = "Cumulated cases and deaths for the period Janauary 2020 to February 2022")
-
 ```
 
 We observe a higher variation in the early times of the pandemic, and a posterior reduction and stabilization (less variance) of the case fatality rate in the most recent times.
 
 
 ### Vaccination Data
-```{r}
-## Load vaccination data
-vaccination <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv")
 
-
-# Join countries from both data sources
-countries_covid <- unique(covid$Country)
-countries_vaccine <- unique(vaccination$location)
-
-countries_vaccine <- data.frame(countries_vaccine=countries_vaccine,
-                             x=1)
-countries_covid <- data.frame(countries_covid=countries_covid,
-                              y=2)
-
-# are the codes similar?
-# countries_vaccine %>%
-#   left_join(countries_covid,by=c("countries_vaccine"="countries_covid")) %>% 
-#   pull(y) %>% sum(na.rm=T)/2
-# 190 countries match
-```
-
-Merging both datasets (WHO and OurWorldinData) based in the country name I got a final table containing information for 190 countries.
 
 ```{r}
-### Time series of vaccination data
-# Let's look at a spageti plot of the vaccination time series across coutnries:
-# vaccination$date %>% range()
+df %>% 
+  filter(WHO_region!="Other" &
+           month=="2022-2") %>% #February 2022 
+  ggplot(aes(region_name,vaccinated))+
+  geom_jitter(alpha=0.5)+
+  geom_boxplot(alpha=0.5,outlier.alpha = 0)+
+  coord_flip()+
+  labs(x="WHO Region",y="People Fully Vaccinated per 100 people",
+       caption = "Vaccination status at February 2022")
 
-# vaccination %>% 
-#   filter(location=="Chile") %>%
-#   ggplot(aes(date,people_fully_vaccinated_per_hundred),group=location)+
-#   geom_line(alpha=.5)+
-#   labs(x="",y="People Fully Vaccinated per 100 people")
 ```
 
 ### CFR vs Vaccination Rates
@@ -290,72 +371,15 @@ Merging both datasets (WHO and OurWorldinData) based in the country name I got a
 Let's make a comparison per period of time of percentage of vaccination and case fatality rate. In order to make the comparison over time, we aggregated the CFR data and vaccination rates over each month. This means that our basic unit of analysis is a country in a given month, with data on the CFR (deaths/cases) and average vaccination rate (people fully vaccinated per 100 people) over each month. The following boxplot shows the case fatality rate over different levels of vaccination.
 
 ```{r}
-## need to summarize covid data to periods of time:
-covid_period <- covid %>% 
-  group_by(WHO_region,Country,month) %>% 
-  summarise(cases=sum(New_cases),
-            deaths=sum(New_deaths)) %>% ungroup() %>% 
-  mutate(cfr=deaths/cases)
-
-# same for vaccination data, we take the average over each period of time
-
-## Create time factor variable, splitting years in half
-vaccination <- vaccination %>% 
-  mutate(period=case_when(
-    date < as.Date("2020-07-01") ~ "2020-1",
-    date < as.Date("2021-01-01") ~ "2020-2",
-    date < as.Date("2021-07-01") ~ "2021-1",
-    date < as.Date("2022-01-01") ~ "2021-2",
-    date < as.Date("2022-07-01") ~ "2022-1",
-    T ~ "other") %>% factor(levels=c("2020-1","2020-2","2021-1",
-                                        "2021-2","2022-1")),
-    month=paste(year(date),month(date),sep="-"))
-
-# take the average over the period
-vaccination_period <- vaccination %>% 
-  mutate(vaccinated=replace_na(people_fully_vaccinated_per_hundred,0)) %>% 
-  group_by(location,month) %>% 
-  summarise(vaccinated=
-              mean(vaccinated,na.rm=T)) %>% ungroup() 
-
-# join based on location
-df <- vaccination_period %>% 
-  left_join(covid_period, by=c("location"="Country",
-                               "month"))
-```
-
-
-```{r}
-p_vac_cfr_point <- df %>% 
-  # filter(location=="Chile") %>%
-  ggplot(aes(vaccinated,cfr,col=WHO_region))+
-  geom_point()+
-  # geom_smooth()+
-    scale_y_continuous(labels = scales::percent,
-                     limits = c(0,0.1)
-                     )+
-  labs(x="People Fully Vaccinated per 100 people",
-       y="Case Fatality Rate COVID-19 [%]",
-       caption="Each point represents a country summary statistics each month")
-```
-
-
-```{r}
 p_vac_cfr_box <- df %>% 
-  mutate(vaccinated_level=case_when(
-    vaccinated<25 ~ "0%-25%",
-    vaccinated<50 ~ "25%-50%",
-    vaccinated<75 ~ "50%-75%",
-    vaccinated<100 ~ "75%-100%",
-    T ~"other") %>% factor(levels=c("0%-25%","25%-50%",
-                                    "50%-75%","75%-100%"))) %>% 
   filter(!(is.na(WHO_region))) %>% 
-  ggplot(aes(WHO_region,cfr,col=vaccinated_level))+
+  ggplot(aes(region_name,cfr,col=vaccinated_level))+
   geom_boxplot()+
   scale_y_continuous(labels = scales::percent,
                      limits = c(0,0.1)
   )+
-  theme(axis.text.x = element_text(angle = -45,vjust=-0.5))+
+  coord_flip()+
+  # theme(axis.text.x = element_text(angle =-45,vjust=-0.5))+
   labs(col="Percentage of People \n Fully Vaccinated [%]",
        x="WHO Region",
        y="Case Fatality Rate COVID-19 [%]",
@@ -367,6 +391,126 @@ We observe for each region a clear reduction in the CFR for COVID-19, both in th
 
 
 ## Inferential analysis 
+
+```{r}
+# Model
+df_model <- df %>% 
+  select(deaths,cfr,cases,vaccinated,vaccinated_level,location,month) %>% 
+  na.omit()
+
+# ## Poisson model
+# model1 <- glm(deaths~vaccinated+location+month+offset(log(cases)), 
+#               data = df_model,
+#               family = "poisson") 
+# summary(model1)
+# # vaccinated variable
+# exp(model1$coefficients[2])
+# exp(confint(model1,"vaccinated", level=0.95))
+# 
+# model2 <- glm(deaths~vaccinated_level+location+month+offset(log(cases)), 
+#               data = df_model,
+#               family = "poisson") 
+# summary(model2)
+# # vaccinated variable
+# exp(model2$coefficients[2:4])
+# exp(confint(model2,2:4, level=0.95))
+
+
+## Negative Binomial model
+# model.nb <- MASS::glm.nb(deaths~vaccinated+location+month+offset(log(cases)), 
+#               data = df_model) 
+# summary(model.nb)
+# exp(model.nb$coefficients[2])
+# exp(confint(model.nb,"vaccinated", level=0.95))
+
+# Model with categorical vaccinated level
+model.nb2 <- MASS::glm.nb(deaths~vaccinated_level+
+                            location+month+offset(log(cases)), 
+              data = df_model) 
+# summary(model.nb2)
+point_vac <- exp(model.nb2$coefficients[2:4])
+ci_vac <- exp(confint(model.nb2,2:4, level=0.95))
+```
+
+Estimated coefficients for the vaccination level:
+
+```{r}
+estimates <- data.frame(mid=point_vac,
+                        lower_bound=ci_vac[,1],
+                        upper_bound=ci_vac[,2])
+names(estimates) <- c("Estimated Coefficient",
+                      "Lower Bound C.I. 95%",
+                      "Upper Bound C.I. 95%")
+estimates %>%
+  flextable() %>% 
+  autofit() %>% 
+  colformat_double(digits=2) %>% 
+  set_caption("Estimated coefficients: Vaccination Level")
+
+estimates %>% 
+  rownames_to_column() %>% 
+  ggplot(aes(rowname, `Estimated Coefficient`))+
+  geom_point(col="red")+
+  geom_errorbar(aes(ymin=`Lower Bound C.I. 95%`,
+                    ymax=`Upper Bound C.I. 95%`))+
+  coord_flip()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  labs(x="",y="Estimated Coefficients: Vaccination Level")
+```
+
+Summary of other fitted coefficients:
+
+```{r}
+location_coefficients <- data.frame(coef=exp(model.nb2$coefficients)) %>% 
+  rownames_to_column() %>% 
+  filter(str_detect(rowname,"location")) %>% 
+  mutate(location=str_remove(rowname,"location"))
+
+# Plot with WHO region
+country_region <- df %>% 
+  group_by(region_name,location) %>% tally() %>% ungroup()
+
+location_coefficients %>% 
+  left_join(country_region) %>% 
+  ggplot(aes(region_name,coef,col=region_name))+
+  geom_jitter(alpha=.5)+
+  geom_boxplot()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  coord_flip()+
+  guides(col=F)+
+  labs(x="WHO Region",col="",y="Estimated Coefficient: Country")
+```
+
+Plot for month coefficient.
+
+```{r}
+size_coef <- length(model.nb2$coefficients)
+
+# get coefficients for month
+point_month <- exp(model.nb2$coefficients[(size_coef-13):(size_coef)])
+ci_month <- exp(confint(model.nb2,(size_coef-13):(size_coef), level=0.95))
+
+estimates_month <- data.frame(mid=point_month,
+                        lower_bound=ci_month[,1],
+                        upper_bound=ci_month[,2])
+
+names(estimates_month) <- c("Estimated Coefficient",
+                      "Lower Bound C.I. 95%",
+                      "Upper Bound C.I. 95%")
+
+estimates_month %>% 
+  rownames_to_column() %>% 
+  mutate(rowname=str_remove(rowname,"month"),
+         month=factor(rowname, levels=rev(month_levels))) %>%  
+  ggplot(aes(month, `Estimated Coefficient`))+
+  geom_point(col="red")+
+  geom_errorbar(aes(ymin=`Lower Bound C.I. 95%`,
+                    ymax=`Upper Bound C.I. 95%`))+
+  coord_flip()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  labs(x="",y="Estimated Coefficients: Month. Reference variable: 2020-12")
+```
+
 
 
 
@@ -425,6 +569,23 @@ Report information of your `R` session for reproducibility.
 sessionInfo()
 ```
 
+# Appendix - Diagnostics
+
+Negative Binomial - Vaccination numeric
+
+```{r}
+# par(mfrow = c(2, 2))
+# plot(model.nb)
+# par(mfrow = c(1,1))
+```
+
+Negative Binomial - Vaccination categorical
+
+```{r}
+par(mfrow = c(2, 2))
+plot(model.nb2)
+par(mfrow = c(1,1))
+```
 
 # Appendix - R Code used {-}
 
