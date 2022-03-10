@@ -1,7 +1,7 @@
 ---
-title: "WHO COVID Data"
+title: "Country Level Effectiveness of Vaccines on COVID-19 Case Fatality Rate"
 author: "Pablo Busch, 918913603"
-date: "March 2022"
+date: "14 March 2022"
 output:
   html_document:
     df_print: paged
@@ -14,7 +14,9 @@ output:
 ```{r global_options, include=FALSE}
 # knitr::opts_chunk$set(fig.pos = 'H')
 # knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = T, warning=F)
-knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = F, warning=F)
+knitr::opts_chunk$set(fig.pos = 'H', 
+                      fig.width=12, fig.height=8,
+                      message=F, echo = F, warning=F)
 ```
 
 ```{r}
@@ -27,33 +29,6 @@ library(skimr) # summary statistics
 library(flextable) #table format for hhtml
 theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 ```
-
-# Roadmap towards final report
-
-
-**To Do**:
-
-- **Case Fatality Rate (CFR) calculation**: I need to better define my response variable, monthly case fatality rate, and explain clearly how is it calculated in an ongoing pandemic. Do I need to consider any lag time issue? A two week shift in the data, to align cases and deaths for COVID-19 could be a potential workaround.
-- **Time series autocorrelation**: I need to better explain and test for time series autocorrelation, as my monthly data is a time series. A potential solution is using the differences between months for each variable.
-- **Model correction:** By exaimining the diagnostic plots for the model, it is clear that the distribution of the residuals don't follow a Normal distibution, but rather a right-skewed distribution.
-- **Need to conduct sensitivity analysis, with several scenarios**:
-  - Remove observations with outliers values for CFR. Threshold could be a monthly value above 10%.
-  - Test a model with more categories for vaccination level variable: [0%-10%, 10%-20%, ..., 90%-100%].
-  - Fit mixed generalized linear model with countries as a random effects variable.
-  - Use bootstrap methods to estimate the confidence intervals for my fitted coefficients.
-
-# Work done since last report:
-
-- - **Model re-definition**: I remove the additional confounding variables for country characteristics (like income, demographics, life expectancy, among others), as my model includes a dummy variable for each country, the differences across countries area already taken care of by this dummy variable.  
-- **Better explanation of the model**: 
-  - I better explained the model I am fitting, along the reasoning. I decided to fit a generalized linear model using a negative binomial distribution for the outcome variable (CFR measured as death count). The reason is that for count data with over-dispersion a negative-binomial distribution will suit better the data than a Poisson (as the Poisson distribution has the assumption of equality of mean and variance).
-  - I fitted the model with CFR as the outcome variable, using an "offset" for the total cases, so each observations is weighted according to the number of cases that they registered for that month. The model also considers a logarithmic transformation on the outcome variable.
-  - I included a better explanation of the data used, and total number of observations. Also a more detailed Methods section that explain how I aggregate the data into monthly observations for each country.
-  - I explained in the methods that I will fit a model using vaccination level as numerical and another model using vaccination level as a categorical variable (with 4 defined levels). In my results section I already fitted the model with the vaccination categorical variable.
-- I increased the matching between my two data sources (WHO and OurWorldinData), to increase the total number of countries included in my analysis.
-- I improve the figures in the report, add comments to them and include some tables with descriptive statistics.
-
-*** 
 
 # Abstract 
 
@@ -70,7 +45,7 @@ theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 
 Since 2020 the world has been facing a pandemic, caused by the COVID-19. The virus cause an inflammatory respiratory stress on the human body. In the two years of the pandemic, approximately 5 million people have died, and more than 400 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A year ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
 
-This report seek to study the effect of vaccines on the COVID-19 case fatality rate (CFR) (deaths/cases). The key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). In previous studies COVID-19 vaccines have been associated with lower CFRs (Liang et al. 2021).
+This report seek to study the effect of vaccines on the COVID-19 case fatality rate (CFR) (deaths/cases). Several studies have found a negative association between vaccination and mortality of COVID-19 among countries (Liang et al., 2021). The key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). In previous studies COVID-19 vaccines have been associated with lower CFRs (Liang et al. 2021).
 
 # Background 
 
@@ -98,7 +73,7 @@ The time series data for COVID-19 cases and deaths, and vaccination rates per co
 The model to be analyzed will be a generalized linear model, using panel data (ecological cross-sectional with a time series):
 
 $$
-log(Y_{i,t})=\beta_0+\beta_1 (Vaccination \: status)_{i,t}+\beta_2 (Country)_i+\beta_3 (Month)_t+\epsilon_{i,t}
+log(Y_{i,t})=\beta_0+\beta_1 (Vaccination \: status)_{i,t}+\beta_{2,i} (Country)_i+\beta_{3,t} (Month)_t+\epsilon_{i,t}
 $$
 
 Where:
@@ -106,26 +81,29 @@ Where:
 - i: Index for each specific country
 - t: Index of month, 25 in total. January 2020 to January 2022.
 - $Y_{i,t}$ is the case fatality rate per country “i” on month "t"
-- $\beta_1$ is the effects of each vaccination level on the case fatality rate. Two models will be fitted with different vaccination status variables:
-  - Numeric: Average of the percentage of people fully vaccinated for the month.
-  - Categorical: The average percentage of people fully vaccinate is classified into 4 groups: [0-25%; 25%-50%; 50%-75%; 75%-100%].
-- $\beta_2$ is the specific effect of the pandemic in each country
-- $\beta_3$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
+- $\beta_1$ is the effects of each vaccination level on the case fatality rate. The model will be fitted consireding vaccination level as a categorical variable. The average percentage of people fully vaccinate is classified into 4 groups: [0-25%; 25%-50%; 50%-75%; 75%-100%]. The data is divided into 4 groups to capture the differences across major vaccination levels. Additional sensitivity analysis is done by fitting a model with 10 vaccination level categories and with vaccination as a numeric variable.
+- $\beta_{2,i}$ is the specific effect of the pandemic in each country
+- $\beta_{3,t}$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
 - Other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
 
-The outcome variable in the model corresponds to number of deaths normalized by total cases of COVID-19 (the case fatality rate). The number of deaths were transformed using a negative binomial distribution with a logarithmic link function, as the negative binomial is a better fit for count data tan the Poisson when there is over-dispersion, as it allows the variance to be different from the mean. Each observation in the model is weighted in the regression using the total number of cases per month, which helps to resolve the issue of differences in size between countries. An analysis of the distribution of the outcome variable and the need for a logarithmic transformation is provided in the Appendix section. \newline
+The outcome variable in the model corresponds to number of deaths normalized by total cases of COVID-19 (the case fatality rate). The number of deaths were transformed using a negative binomial distribution with a logarithmic link function, as the negative binomial is a better fit for count data than the Poisson when there is over-dispersion, as it allows the variance to be different from the mean. The negative binomial distribution have been used in other studies for count data such as deaths (Haldar & Sethi, 2020). \newline 
 
-The main hypothesis to test the effect of the vaccination level of each country on the CFR for COVID-19, that is to test $H_0:\beta_2=0$ vs $H_A:\beta_2 \neq 0$.
+
+Each observation in the model is weighted in the regression using the total number of cases per month, which helps to resolve the issue of differences in size between countries. An analysis of the distribution of the outcome variable and the need for a logarithmic transformation is provided in the Appendix section. \newline
+
+The main hypothesis to test the effect of each vaccination level on the CFR for COVID-19, that is to test $H_0:\beta_1=0$ vs $H_A:\beta_1 \neq 0$. A likelihood ratio test is conduct to test whether the coefficient associated to vaccination status is significant. Furthermore, the coefficients are present along with their confidence intervals at 95% level. \newline
+
+Coefficients are presented as relative risk (RR), that represents the relative change in the case fatality rate for COVID-19. For example, a coefficient with a RR of 0.9, means that this variable reduces in 10% the mortality rate for COVID-19, while controlling by other variables in the model.
 
 ### Sensitivity analysis
 
 Several scenarios will be conducted to analyze results in more robust way:
 
+- Model with vaccination as a numeric variable.
 - Remove observations with outliers values for CFR. Threshold could be a monthly value above 10%.
 - Test a model with more categories for vaccination level variable: [0%-10%, 10%-20%, ..., 90%-100%].
 - Fit mixed generalized linear model with countries as a random effects variable.
 - Use bootstrap methods to estimate the confidence intervals for my fitted coefficients.
-
 
 ## Data preparation
 
@@ -495,6 +473,8 @@ This figure seems to support our main hypothesis of reduction of CFR in countris
 
 A model including the vaccination level categorical variable is fitted. The following table shows the fitted coefficients for the vaccination level, along with the confidence intervals at 95% level. Diagnostics of this model are presented in the appendix section.
 
+COMMENT TABLE!
+
 ```{r}
 # Model
 df_model <- df %>% 
@@ -511,7 +491,7 @@ point_vac <- exp(model.nb2$coefficients[2:4])
 ci_vac <- exp(confint(model.nb2,2:4, level=0.95))
 ```
 
-```{r}
+```{r, fig.width=6, fig.height=4}
 estimates <- data.frame(mid=point_vac,
                         lower_bound=ci_vac[,1],
                         upper_bound=ci_vac[,2])
@@ -643,7 +623,7 @@ Overall we observe some interesting patterns:
 
 **To Do**. See methods section for the scenarios to be analyzed.
 
-```{r}
+```{r, fig.width=6, fig.height=4}
 # OTHER MODELS ----
 
 ## Negative Binomial model - NUMERIC
@@ -705,6 +685,7 @@ p_noOut
 # Discussion 
 
 **Proposed Outline**:
+
 - A brief recap of this project. 
 - Findings in the inferential analysis
 - Suggestions for future research and/or policy making given your findings. 
@@ -713,7 +694,7 @@ p_noOut
 
 The model suffers from some inherent problems. Here are the problems and a possible workaround:
 
-- **Spatial correlation**: Perhaps I can add the variable region in the data set to control for continental effects on COVID-19, under the assumption that countries in the same region share more immigration, resulting in a jointly COVID-19 spread.
+- **Spatial correlation**: COVID-19 data presents some spatial autocorrelation, as the disease is infectious and spreader along neighbor countries through immigration. This effect is partially controlled by adding a dummy variable for each country.
 - **Delay due to detection**: There is an approximate two weeks difference between detected cases and deaths, due to evolution of the disease. The reason I am grouping whole months is to capture all deaths and cases over a longer period of time, to obtain a more accurate estimate of the case fatality rate. 
 - **Time series autocorrelation**: I would need to test for the presence of autocorrelation in the panel data, and if present I will need to correct them, perhaps with the addition of the case mortality rate for the previous period (dynamic model).
 - **Different demographics or characteristics across countries**: The dummy variable per country added to the model should control for each country individual characteristics, under the assumption that these traits haven't suffered major changes in the time period analyzed (2021-12 to 2022-2).
@@ -728,26 +709,22 @@ The model suffers from some inherent problems. Here are the problems and a possi
 - Limitations
 - Suggestions for future studies
 
+
+There is strong statistical evidence pointing in the association of countries with higher COVID-19 vaccination rates and lower case mortality rate due to COVID-19. This implies that each country with current lower vaccination rates should promote a vaccination strategy in this year to reduce the death burden of the on-going COVID-19 pandemic.
+
 # Acknowledgement {-}
 
-I acknowledge the instructor Professor Shizhe Chen and his materials for statistical methods of research. i also acknowledge the following classmates for their valuable feedback and comments during the project development: Yinan Cheng, Shuyu Guo and Kyung Jin Lee.
+I acknowledge the instructor Professor Shizhe Chen and his materials for statistical methods of research. I also acknowledge the following classmates for their valuable feedback and comments during the project development: Yinan Cheng, Shuyu Guo, Kyung Jin Lee, Katherine Cheng, Oscar Rivera and Jedidiah Harwood.
 
 # Reference {-}
 
-- - Course Notes STA207 UC Davis Winter Quarter 2022. Professor Shizhe Chen. Chapter 4 - Analysis of Variance. 
-
-# Session info {-}
-
-<span style='color:blue'>
-Report information of your `R` session for reproducibility. 
-</span> 
+- Course Notes STA207 UC Davis Winter Quarter 2022. Professor Shizhe Chen.
 
 
-```{r}
-sessionInfo()
-```
-
-
+- World Health Organization (WHO). (2022). WHO Coronavirus (COVID-19) Data. See: https://covid19.who.int/info
+- Our World in Data. (2022). Coronavirus (COVID-19) Vaccinations Data. https://ourworldindata.org/covid-vaccinations
+- Liang, L. L., Kuo, H. S., Ho, H. J., & Wu, C. Y. (2021). COVID-19 vaccinations are associated with reduced fatality rates: Evidence from cross-county quasi-experiments. *Journal of Global Health, 11.*
+- Haldar, A., & Sethi, N. (2020). The effect of country-level factors and government intervention on the incidence of COVID-19. *Asian Economics Letters, 1*(2), 17804.
 
 # Appendix - Additional Analysis/Figures
 
@@ -763,6 +740,7 @@ df %>%
   geom_density(alpha=.5)+
   facet_wrap(region_name~key,scales = "free")+
   labs(y="Density",x="Case Fatality Rate COVID-19 [%]",
+       fill="Region Name",
        caption = "Cumulated cases and deaths for the period December 2020 to February 2022")
 ```
 
@@ -778,6 +756,7 @@ df %>%
   geom_density(alpha=.5)+
   facet_wrap(~region_name,scales = "free")+
   labs(y="Density",x="People Fully Vaccinated per 100 people",
+       fill="Region Name",
        caption = "Vaccination status at February 2022")
 ```
 
@@ -796,7 +775,43 @@ df %>%
 ```{r}
 # Negative Binomial Model - Vaccination as categorical variable
 par(mfrow = c(2, 2))
-plot(model.nb2)
+# plot(model.nb2)
+boot::glm.diag.plots(model.nb2)
+```
+
+Conduct a dispersion test to see whether the data fitted to the model is more/less dispersed than expected. The test looks good, as we cannot reject the null hypothesis of over-dispersion.
+
+```{r}
+# Dispersion test
+DHARMa::testDispersion(model.nb2) #looks good
+```
+
+
+```{r}
+# influence plot
+# outliers to remove
+car::influencePlot(model.nb2)
+
+
+model.nb3 <- MASS::glm.nb(deaths~location+month+offset(log(cases)), 
+              data = df_model[c(-310,-641,-1291,-1337),]) 
+
+par(mfrow = c(2, 2))
+plot(model.nb3)
+
+par(mfrow = c(1, 1))
+car::influencePlot(model.nb3)
+
+
+
+model.nb1 <- MASS::glm.nb(deaths~location+month+offset(log(cases)), 
+              data = df_model) 
+
+lmtest::lrtest(model.nb1,model.nb2)
+
+# plot(model_noOutliers)
+# plot(model_poisson)
+# plot(model.10levels)
 par(mfrow = c(1,1))
 
 # autoplot(model.nb2) 
@@ -813,3 +828,8 @@ In the diagnostics plot we can observe:
 ```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
 ```
 
+# Appendix - Session info {-}
+
+```{r}
+sessionInfo()
+```
