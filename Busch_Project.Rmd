@@ -32,22 +32,26 @@ theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 
 # Abstract 
 
-**Outline**:
+**Background**: The on-going COVID-19 pandemic has taken more than 4 million human lives worldwide since it started on 2020. Novel vaccines were developed at the end of 2020 to reduce the mortality rate associated with this respiratory infectious disease. There has been a different level of vaccine adoption among countries, so the key question this report seeks to answer is whether there countries with higher vaccination rates are associated with lower COVID-19 case fatality rate.\newline
+**Method**: Using country and monthly case, death and vaccination data related to COVID-19 a generalized linear model with a negative binomial distribution was fitted, to estimate the effect of vaccination at country level in reducing the case fatality rate of COVID-19. The model was controlled by each country heterogeneity and the time development of the COVID-19 disease, \newline
+**Results**: A statistical significant relationship was found, a higher vaccination rate reduce the relative risk of COVID-19 by: 
 
-- Background: COVID-19 Pandemic and Vaccines
-- Key question: differences in case mortality rate for countries with higher vaccination rates
-- Data used: WHO and vaccination data
-- Results
-- Limitations
-- Conclusion
+Potential limitations of the analysis are due to the time and spatial autocorrelation in the data. \newline
+**Conclusion**: Countries with current low vaccination rates should prioritize a policy to vaccinate their population with the goal to reduce the death toll of the COVID-19 pandemic.
 
 # Introduction
 
-Since 2020 the world has been facing a pandemic, caused by the COVID-19. The virus cause an inflammatory respiratory stress on the human body. In the two years of the pandemic, approximately 5 million people have died, and more than 400 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A year ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
-
-This report seek to study the effect of vaccines on the COVID-19 case fatality rate (CFR) (deaths/cases). Several studies have found a negative association between vaccination and mortality of COVID-19 among countries (Liang et al., 2021). The key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). In previous studies COVID-19 vaccines have been associated with lower CFRs (Liang et al. 2021).
+The on-going COVID-19 pandemic has taken more than 4 million human lives worldwide since it started on 2020. Novel vaccines were developed at the end of 2020 to reduce the mortality rate associated with this respiratory infectious disease. There has been a different level of vaccine adoption among countries, so the key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). \newline
 
 # Background 
+
+The virus cause an inflammatory respiratory stress on the human body. In the two years of the pandemic, approximately 5 million people have died, and more than 400 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A year ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
+
+Several studies have found a negative association between vaccination and case fatality rate of COVID-19 (Liang et al., 2021; Passarelli-Araujo et al., 2022). In particular, Liang et al. (2021) found that a 10% increase in the vaccination among the population decrease the CFR of COVI-19 by 7.6%. This study uses a panel data consisting of 90 countries over 25 weeks, fitting a country-level random effects model (Liang et al., 2021). The variable for vaccination level was the number of people per 100 habitants that have received at least one dose of the vaccine. The question remains open to study the effect of people fully vaccinated (scheme completed), which this report seeks to answer.
+
+# Method
+
+## Data
 
 As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accessible to the general public ([link to download](https://covid19.who.int/info)). The data contains COVID-19 daily related cases and deaths for a variety of countries. Here are the resolutions:
 
@@ -62,9 +66,13 @@ For this project the variable to evaluate vaccination status was the total peopl
 
 - It is already normalized by total population in each country.
 - Only considers people that have completely fulfill the requirements for the vaccine administered, whether is 1 or 2 doses required.
-- The vaccine type was not considered in the scope of this analysis, but it is a factor that could be considered in future studies.
+- The vaccine type was not considered in the scope of this analysis, but it is a factor that could be considered in future studies. \newline
 
-# Method
+### Data preparation
+
+Both datasets (WHO and OurWorldinData) were merged based in the country name, resulting in a match of 167 countries in total. For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each location.\newline
+
+To improve the estimation and robustness of the analysis, the CFR was estimated for each country only in the months in which there were at least 100 cases and more than 10 deaths.
 
 ## Statistical Model
 
@@ -83,17 +91,22 @@ Where:
 - $Y_{i,t}$ is the case fatality rate per country “i” on month "t"
 - $\beta_1$ is the effects of each vaccination level on the case fatality rate. The model will be fitted consireding vaccination level as a categorical variable. The average percentage of people fully vaccinate is classified into 4 groups: [0-25%; 25%-50%; 50%-75%; 75%-100%]. The data is divided into 4 groups to capture the differences across major vaccination levels. Additional sensitivity analysis is done by fitting a model with 10 vaccination level categories and with vaccination as a numeric variable.
 - $\beta_{2,i}$ is the specific effect of the pandemic in each country
+  - Note that other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
 - $\beta_{3,t}$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
-- Other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
 
-The outcome variable in the model corresponds to number of deaths normalized by total cases of COVID-19 (the case fatality rate). The number of deaths were transformed using a negative binomial distribution with a logarithmic link function, as the negative binomial is a better fit for count data than the Poisson when there is over-dispersion, as it allows the variance to be different from the mean. The negative binomial distribution have been used in other studies for count data such as deaths (Haldar & Sethi, 2020). \newline 
-
+The outcome variable in the model corresponds to number of deaths normalized by total cases of COVID-19 (the case fatality rate). The number of deaths were transformed using a negative binomial distribution with a logarithmic link function, as the negative binomial is a better fit for count data than the Poisson when there is over-dispersion, as it allows the variance to be different from the mean. The negative binomial distribution have been used in other studies for count data with over-disperison, such as deaths (Haldar & Sethi, 2020). \newline 
 
 Each observation in the model is weighted in the regression using the total number of cases per month, which helps to resolve the issue of differences in size between countries. An analysis of the distribution of the outcome variable and the need for a logarithmic transformation is provided in the Appendix section. \newline
 
+The major assumptions of the model are: 
+
+- The outcome variable follows a negative binomial distribution
+- The model is correctly specified (no omitted variable): No other characteristics, beside vaccination, among countries have changed in the last year that could affect the CFR for COVID-19
+- The data used reflects the COVID-19 pandemic in each country: that is that each country has the institutions to accurately identify cases, deaths and vaccinated people for COVID-19. 
+
 The main hypothesis to test the effect of each vaccination level on the CFR for COVID-19, that is to test $H_0:\beta_1=0$ vs $H_A:\beta_1 \neq 0$. A likelihood ratio test is conduct to test whether the coefficient associated to vaccination status is significant. Furthermore, the coefficients are present along with their confidence intervals at 95% level. \newline
 
-Coefficients are presented as relative risk (RR), that represents the relative change in the case fatality rate for COVID-19. For example, a coefficient with a RR of 0.9, means that this variable reduces in 10% the mortality rate for COVID-19, while controlling by other variables in the model.
+To interpret the results the coefficients are presented as relative risk (RR). This represents the relative change in the case fatality rate for COVID-19. For example, a coefficient with a RR of 0.9, means that this variable reduces in 10% the mortality rate for COVID-19, while controlling by other variables in the model.
 
 ### Sensitivity analysis
 
@@ -102,14 +115,8 @@ Several scenarios will be conducted to analyze results in more robust way:
 - Model with vaccination as a numeric variable.
 - Remove observations with outliers values for CFR. Threshold could be a monthly value above 10%.
 - Test a model with more categories for vaccination level variable: [0%-10%, 10%-20%, ..., 90%-100%].
-- Fit mixed generalized linear model with countries as a random effects variable.
+- Fit mixed generalized linear model with countries as a random effects variable, such as the study of Liang et al. (2021).
 - Use bootstrap methods to estimate the confidence intervals for my fitted coefficients.
-
-## Data preparation
-
-Both datasets (WHO and OurWorldinData) were merged based in the country name, resulting in a match of 167 countries in total. For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each location.\newline
-
-To improve the estimation and robustness of the analysis, the CFR was estimated for each country only in the months in which there were at least 100 cases and more than 10 deaths.
 
 # Results
 
@@ -724,7 +731,9 @@ I acknowledge the instructor Professor Shizhe Chen and his materials for statist
 - World Health Organization (WHO). (2022). WHO Coronavirus (COVID-19) Data. See: https://covid19.who.int/info
 - Our World in Data. (2022). Coronavirus (COVID-19) Vaccinations Data. https://ourworldindata.org/covid-vaccinations
 - Liang, L. L., Kuo, H. S., Ho, H. J., & Wu, C. Y. (2021). COVID-19 vaccinations are associated with reduced fatality rates: Evidence from cross-county quasi-experiments. *Journal of Global Health, 11.*
+- Passarelli-Araujo, H., Pott-Junior, H., Susuki, A. M., Olak, A. S., Pescim, R. R., Tomimatsu, M. F., ... & Urbano, M. R. (2022). The impact of COVID-19 vaccination on case fatality rates in a city in Southern Brazil. *American Journal of Infection Control.*
 - Haldar, A., & Sethi, N. (2020). The effect of country-level factors and government intervention on the incidence of COVID-19. *Asian Economics Letters, 1*(2), 17804.
+- Florian Hartig (2022). DHARMa: Residual Diagnostics for Hierarchical (Multi-Level / Mixed) Regression Models. R package version 0.4.5. http://florianhartig.github.io/DHARMa/
 
 # Appendix - Additional Analysis/Figures
 
