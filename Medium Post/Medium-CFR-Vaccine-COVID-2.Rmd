@@ -1,0 +1,497 @@
+---
+title: "Part 2: Exploring the effects of vaccines at country level to reduce the case fatality rate for COVID-19"
+author: "Pablo Busch"
+date: "August 2022"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+---
+```{r global_options, include=FALSE}
+# knitr::opts_chunk$set(fig.pos = 'H')
+# knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = T, warning=F)
+knitr::opts_chunk$set(fig.pos = 'H', 
+                      fig.width=12, fig.height=8,
+                      message=F, echo = F, warning=F)
+```
+
+
+Hi again! This second post about COVID-19 mortality and vaccination data is about fitting a statistical model to test the hypothesis that countries with higher vaccination rates over time have lower case fatality rate (CFR) of COVID-19. \newline
+
+In the first post we covered all the data part: starting from loading the data of interest, cleaning it and merging it into a common data set. We also presented some nice figures that support our hypothesis of the efficacy of vaccines! \newline
+
+Now we are going to get more serious and fit an actual model that will tell us whether our hypothesis holds or not, based on our assumptions and data. As a side note: this exercise is just for the purpose of learning and showing how an ecological model works, because we already know from multiple scientific studies conducted at the individual level that COVID-19 vaccines have a high efficacy in preventing COVID-19 deaths (see for example [Polack et.al 2020](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)). \newline
+
+That being said, let's get to the statistical part, but first a small review of what other similar ecological studies have done. The term ecological in this context simply refers that our smallest unit of analysis is a group of population (countries in this case), rather than individuals. \newline
+
+# What the scientific literature says 
+
+The COVID-19 virus causes an inflammatory respiratory stress on the human body. In the two and a half years of the pandemic, more than 6 million people have died, and more than 550 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A little more than a year and a half ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
+
+Several studies have found a negative association between vaccination and case fatality rate of COVID-19 ([Liang et al., 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/); [Passarelli-Araujo et al., 2022](https://www.sciencedirect.com/science/article/pii/S0196655322000955?casa_token=W-MIZP5wh_YAAAAA:qT31YeVVvdLoTROdPaVglqm2Iwze7Y7Pm2SMS2a7GhJ6ESsG6Fp3_NsO8g-MBaop_ip3ZSWrow)). In particular, Liang et al. (2021) found that a 10% increase in the vaccination among the population decrease the CFR of COVI-19 by 7.6%. This study uses a panel data consisting of 90 countries over 25 weeks, fitting a country-level random effects model (Liang et al., 2021). The variable for vaccination level was the number of people per 100 habitants that have received at least one dose of the vaccine. The question remains open to study the effect of people fully vaccinated (scheme completed), which this humble post seeks to answer.
+
+# Method
+
+## Data preparation
+
+In the previous post, the time series data for COVID-19 cases and deaths, and vaccination rates per country was converted to a panel data: that is a cross-sectional ecological study (main observational unit is the monthly variables per country). CFR and vaccination rates were summarized to monthly averages to balance the trade-off between number of observations and accuracy of predictions. A monthly average allow us to have approximately 12 observations (months) per country, and by averaging for the whole month we are reducing the random daily noise. \newline
+
+To improve the estimation and robustness of the analysis, the CFR was estimated for each country only in the months in which there were at least 100 cases and more than 10 COVID-19 deaths.
+
+## Statistical Model
+
+The model to be analyzed will be a generalized linear model, using panel data (ecological cross-sectional with a time series). The model will have the following form, with the inclusion of additional variables to control for the heterogeneity of each country and the time-effect of the pandemic (variable month).
+
+$$
+log(Y_{i,t})=\beta_0+\beta_1 (Vaccination \: status)_{i,t}+\beta_{2,i} (Country)_i+\beta_{3,t} (Month)_t+\epsilon_{i,t}
+$$
+
+Where:
+
+- i: Index for each specific country: 189 in total.
+- t: Index of month: December 2020 to July 2022.
+- $Y_{i,t}$ is the case fatality rate per country “i” on month "t". The CFR is calculated by dividing the deaths for the cases that ocurred in the country two weeks before.
+- $\beta_1$ is the effects of each vaccination level on the case fatality rate. The model will be fitted considering vaccination level as a categorical variable. The average percentage of people fully vaccinate in a given month is classified into 4 groups: [0-25%; 25%-50%; 50%-75%; 75%-100%]. The data is divided into 4 groups to capture the differences across major vaccination levels. Additional sensitivity analysis is done by fitting a model with 10 vaccination level categories and with vaccination as a numeric variable.
+- $\beta_{2,i}$ is the specific effect of the pandemic in each country
+  - Note that other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
+- $\beta_{3,t}$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
+
+The good thing of having a panel data, with several months of information is that it gives us enough observations to control for each country special characteristics. In simple terms, we can fit 184 coefficients in the model (one for each country) and still have enough degrees of freedom to capture the effect of the vaccination level on the CFR of COVID-19. You may wonder why is it important to "use" 184 coefficients in the countries. The answer is that it allows us to separate the vaccine effect for each country characteristics and context. As you may know, there are a lot of things inside a country that affect the CFR, such as income level, health infrastructure, quarantine measures, among others. The beauty of the country coefficients is that captures all that static heterogeneity and leave the vaccine effect untouched, as vaccination levels in each country are dynamic (changing) through the months! \newline
+
+The outcome variable in the model corresponds to number of deaths normalized by total cases of COVID-19 (the case fatality rate). The number of deaths were transformed using a negative binomial distribution with a logarithmic link function, as the negative binomial is a better fit for count data than the Poisson when there is over-dispersion, as it allows the variance to be different from the mean. The negative binomial distribution have been used in other studies for count data with over-dispersion, such as deaths ([Haldar & Sethi, 2020](https://www.researchgate.net/profile/Narayan-Sethi/publication/346016136_The_Effect_of_Country-level_Factors_and_Government_Intervention_on_the_Incidence_of_COVID-19/links/5fb613ee299bf104cf5ad045/The-Effect-of-Country-level-Factors-and-Government-Intervention-on-the-Incidence-of-COVID-19.pdf)). \newline 
+
+Each observation in the model is weighted in the regression using the total number of cases per month, which helps to resolve the issue of differences in size between countries. In simple terms, each death of COVID-19 counts the same across the whole model, giving more weight to countries with more population (and thus more cases and deaths from COVID-19). \newline
+
+All our model results rely not only on the quality of the data, but also on some major assumptions:
+
+- The outcome variable follows a negative binomial distribution.
+- The model is correctly specified (no omitted variable): No other characteristics, beside vaccination, among countries have changed in the last year that could affect the CFR for COVID-19.
+- The data used reflects the COVID-19 pandemic in each country: that is that each country has the institutions to accurately identify cases, deaths and vaccinated people for COVID-19. 
+
+The main hypothesis to test is the effect of each vaccination level on the CFR for COVID-19. In statistical terms that is to test $H_0:\beta_1=0$ vs $H_A:\beta_1 \neq 0$. A likelihood ratio test is conduct to test whether the coefficient associated to vaccination status is significant. Furthermore, the coefficients are present along with their confidence intervals at 95% level. This model specification can only provide an answer regarding association of vaccination rates and CFR at country level, and does not provide an statement about causal inference nor efficacy of the vaccine at the individual level. \newline
+
+**Important**: to interpret all the results, the coefficients are presented as relative risk (RR). This represents the relative change in the case fatality rate for COVID-19. For example, a coefficient with a RR of 0.9, means that this variable reduces in 10% the mortality rate for COVID-19, while controlling by other variables in the model.
+
+## Sensitivity analysis
+
+All tests on the residuals of the generalized linear model were conducted using a simulation-based approach using the DHARMa library in R ([Hartig, 2022](https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html)). The following test were conducted: dispersion of residuals and a simulated QQ-plot. \newline
+
+In addition to testing the main model, several scenarios were conducted to analyze results in more robust way:
+
+- Model with vaccination as a numeric variable.
+- Remove observations with outliers values for CFR above 10% in a given month.
+- Test a model with more categories for vaccination level variable: [0%-10%, 10%-20%, ..., 90%-100%].
+- Fit mixed generalized linear model with countries as a random effects (instead of fixed effect) variable, such as the study of Liang et al. (2021).
+- Use bootstrap methods to estimate the confidence intervals for the original model.
+
+# Results
+
+## Inferential analysis 
+
+```{r}
+# First we need to load all the required libraries for R, and we will use the dataframe created in the previous post that contains all relevant information.
+# libraries
+library(tidyverse) # data manipulation
+library(scales) 
+library(lubridate) #time format
+library(gridExtra) # plot manipulation
+library(plotly) # interactive plots
+library(flextable) #table format for hhtml
+library(DHARMa) # Simulations test for GLM
+theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
+```
+
+```{r}
+# read previous saved data.frame
+# see Medium-CFR-Vaccine-COVID-1.Rmd to create this rds object
+df <- read_rds("df.rds")
+```
+
+All the model fitting, tables and figures creation are done using R. All the code is available at my [GitHub](https://github.com/pmbusch/COVID19-Vaccine-CFR). Please visit it if you want to learn more about the code and R libraries used in this post! \newline 
+
+The following table shows the relative risk (fitted coefficients) for the vaccination level, along with the confidence intervals at 95% level. We observe that countries with vaccination rates between 25%-50% have a 18% reduction in the CFR for COVID-19, compared to countries in the 0%-25% vaccination group. This reduction increases with higher vaccination rates, as the reduction for the group 50%-75% is 17% and for the group 75%-100% is 37%.
+
+```{r}
+# Model dataframe
+df_model <- df %>% 
+  select(deaths,cfr,cases,vaccinated,vaccinated_level,
+  vaccinated_level_10,location,month) %>% 
+  mutate(location_month=paste0(month,location)) %>% 
+  na.omit()
+
+# Model with categorical vaccinated level
+model.nb2 <- MASS::glm.nb(deaths~vaccinated_level+
+                            location+month+offset(log(cases)), 
+              data = df_model) 
+# summary(model.nb2)
+point_vac <- exp(model.nb2$coefficients[2:4])
+ci_vac <- exp(confint(model.nb2,2:4, level=0.95))
+
+```
+
+```{r, fig.width=6, fig.height=4}
+# table
+estimates <- data.frame(mid=point_vac,
+                        lower_bound=ci_vac[,1],
+                        upper_bound=ci_vac[,2])
+names(estimates) <- c("Estimated Coefficient",
+                      "Lower Bound C.I. 95%",
+                      "Upper Bound C.I. 95%")
+
+estimates <- estimates %>% 
+  rownames_to_column() %>% 
+  rename(Variable=rowname) %>% 
+  mutate(Variable=str_replace(Variable,"vaccinated_level",
+                              "Vaccination Level: "))
+
+
+estimates %>%
+  rename(RR=`Estimated Coefficient`) %>% 
+  flextable() %>% 
+  autofit() %>% 
+  colformat_double(digits=2) %>% 
+  set_caption("Relative Risk (RR): Vaccination Level")
+```
+
+The same table can be presented visually with an error bar figure. In the figure we can see the estimated RR, along with the 95% confidence interval. Please remember that the estimated coefficients represent the relative change with respect to the reference case (Vaccination level between 0% and 25%).\newline 
+
+We can see important reduction associated with higher vaccination levels, meaning that countries with higher vaccination levels have a lower CFR, an it is an increasing relationship. Also, as the C.I. don't cross the reference line at 1, we can reject the null hypothesis of no effect of vaccination level on CFR at 95% level. 
+
+```{r, fig.width=6, fig.height=4}
+estimates %>% 
+  mutate(Variable=str_remove(Variable,"Vaccination Level: ")) %>% 
+  ggplot(aes(Variable, `Estimated Coefficient`))+
+  geom_point(col="red")+
+  geom_errorbar(aes(ymin=`Lower Bound C.I. 95%`,
+                    ymax=`Upper Bound C.I. 95%`))+
+  coord_flip()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  labs(x="Vaccination Level",y="Relative Risk (RR): Vaccination Level")
+rm(estimates)
+
+
+# Function to plot estimated coefficients along their error bar
+f_plot_coef <- function(mod,
+                        range=2:4,
+                      var_name="vaccinated_level",
+                      var_title="Vaccination Level",
+                      title_plot=""){
+  
+  point <- exp(mod$coefficients[range])
+  ci <- exp(confint(mod,range, level=0.95))
+  estimates <- data.frame(mid=point,
+                          lower_bound=ci[,1],
+                          upper_bound=ci[,2])
+  
+  names(estimates) <- c("Estimated Coefficient",
+                        "Lower Bound C.I. 95%",
+                        "Upper Bound C.I. 95%")
+  
+  estimates <- estimates %>% 
+    rownames_to_column() %>% 
+    rename(Variable=rowname) %>% 
+    mutate(Variable=str_replace(Variable,var_name,
+                                paste0(var_title,": ")))
+  
+  # Plot
+  estimates %>% 
+    mutate(Variable=str_remove(Variable,paste0(var_title,": "))) %>% 
+    ggplot(aes(Variable, `Estimated Coefficient`))+
+    geom_point(col="red")+
+    geom_errorbar(aes(ymin=`Lower Bound C.I. 95%`,
+                      ymax=`Upper Bound C.I. 95%`))+
+    coord_flip()+
+    geom_hline(yintercept = 1, linetype="dashed")+
+    labs(x=var_title, y=paste0("Relative Risk (RR): ",
+                               var_title),title = title_plot)
+}
+```
+
+The reduction in CFR is similar for vaccination levels between 25% to 75%, having a huge improvement in levels above 75%. This could be explained due to multiple factors, such as countries with a similar vaccination level near the border of categories (50% vaccination level) or a required threshold in vaccination to get co-benefits that reduce mortality, such as the non-collapse of the health system. 
+
+```{r}
+# LR test
+model.nb1 <- MASS::glm.nb(deaths~location+month+offset(log(cases)), 
+              data = df_model) 
+test_lr <- lmtest::lrtest(model.nb1,model.nb2)
+# test_lr
+```
+
+The likelihood ratio test also rejected the null hypothesis of no vaccination level effect with a p-value of $8.676*10^{-9}$. \newline
+
+Here is also a summary of the other fitted coefficients estimated for each country and for each month (our control variables):
+
+```{r}
+location_coefficients <- data.frame(coef=exp(model.nb2$coefficients)) %>% 
+  rownames_to_column() %>% 
+  filter(str_detect(rowname,"location")) %>% 
+  mutate(location=str_remove(rowname,"location"))
+
+# Plot with WHO region
+country_region <- df %>% 
+  group_by(region_name,location) %>% tally() %>% ungroup()
+
+p_coef_country <- location_coefficients %>% 
+  left_join(country_region) %>% 
+  rename(Region=region_name) %>% 
+  ggplot(aes(Region,coef,col=Region))+
+  geom_jitter(alpha=.5,
+              aes(text=paste0("Country: ",location,
+                              "\n Relative Risk: ",round(coef,2))))+
+  geom_boxplot()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  coord_flip()+
+  guides(col=F)+
+  labs(x="WHO Region",col="",y="Relative Risk (RR): Country")
+
+ggplotly(p_coef_country)
+```
+
+```{r}
+size_coef <- length(model.nb2$coefficients)
+
+# get coefficients for month
+point_month <- exp(model.nb2$coefficients[(size_coef-13):(size_coef)])
+ci_month <- exp(confint(model.nb2,(size_coef-13):(size_coef), level=0.95))
+
+estimates_month <- data.frame(mid=point_month,
+                        lower_bound=ci_month[,1],
+                        upper_bound=ci_month[,2])
+
+names(estimates_month) <- c("Relative Risk (RR)",
+                      "Lower Bound C.I. 95%",
+                      "Upper Bound C.I. 95%")
+
+month_levels <- c("2020-12","2021-1","2021-2","2021-3",
+                  "2021-4","2021-5","2021-6","2021-7","2021-8",
+                  "2021-9","2021-10","2021-11","2021-12",
+                  "2022-1","2022-2","2022-3","2022-4","2022-5",
+                  "2022-6","2022-7")
+```
+
+```{r}
+p_coef_month <- estimates_month %>% 
+  rownames_to_column() %>% 
+  mutate(rowname=str_remove(rowname,"month"),
+         month=factor(rowname, levels=rev(month_levels))) %>%  
+  ggplot(aes(month, `Relative Risk (RR)`))+
+  geom_point(col="red")+
+  geom_errorbar(aes(ymin=`Lower Bound C.I. 95%`,
+                    ymax=`Upper Bound C.I. 95%`))+
+  coord_flip()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  labs(x="",y="Relative Risk (RR): Month. Reference variable: 2020-12")
+p_coef_month
+```
+
+Overall we observe some interesting patterns:
+
+- Countries in Europe have a much lower relative risk compared to other countries. Other factors such as a healthier population or better health infrastructure could explain this effect. 
+- We do observe a reduction in time of the relative risk, with the presence of some peaks probably associated with new variants of COVID-19 or climatic seasons in the north hemisphere (where the great majority of people live).
+
+## Model Diagnostics
+
+It is important to always conduct some model diagnostics to check if our main statistical assumptions hold. We begin with the conducted test on dispersion, to see whether the data fitted to the model is more/less dispersed than expected. 
+
+```{r}
+# Dispersion test
+# tests if the simulated dispersion is equal to the observed dispersion
+a <- testDispersion(model.nb2) #looks good
+```
+
+The test tells us that cannot reject the null hypothesis of no presence of over/under dispersion in the model. This means that the dispersion of the model is in line for what is expected for a negative binomial distribution.\newline
+
+Next we conduct a QQ-plot for a generalized linear model:
+
+```{r}
+plotQQunif(model.nb2)
+```
+
+We observe that the dispersion of the residuals of the model is as expected for a negative binomial distribution. The outlier test reveals the presence of potential observations that may have an unusual value, which could be problematic for the model. Based on this, an additional model removing observations with values of CFR above 10% was conducted, which gives similar results to the original model. \newline
+
+As a summary, the tests don't support the evidence of over-dispersion (which is good), but there is some presence of outliers in the model, so it will be key to test if the main results are the same in a model without outliers. \newline
+
+## Sensitivity analysis 
+
+Rather than sticking with the main results, it is always more interesting to explore different scenarios and variations of the model, to check whether the main conclusion changes or not. Here I tried different models and scenarios. Overall, the main result does not change, and we can always observe the strong effect of vaccination levels in reducing the CFR for COVID-19!\newline
+
+I started with a model with vaccination level as numeric variable, instead of the 4 categories. Let's get the RR for the vaccination variable:
+
+```{r}
+## Negative Binomial model - NUMERIC
+model.nb <- MASS::glm.nb(deaths~vaccinated+location+month+offset(log(cases)),
+              data = df_model)
+# summary(model.nb)
+# exp(model.nb$coefficients[2]*10)
+# exp(confint(model.nb,"vaccinated", level=0.95)*10)
+```
+
+The results shows that a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.27% [C.I. 95%: -6.04%; -2.47%], a similar result that the one obtained in [Liang et al. (2021)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/): -7.6% [C.I. 95%: -12.6%; -2.7%]. \newline
+
+Next is presented the model with 10 categories of vaccination level and the model only considering cases where the CFR was below 10%, to remove the presence of outliers. 
+
+```{r}
+## 10 levels categorical model ------
+model.10levels <- MASS::glm.nb(deaths~vaccinated_level_10+
+                            location+month+offset(log(cases)), 
+              data = df_model) 
+# exp(model.10levels$coefficients[2:10])
+# exp(confint(model.10levels,2:4, level=0.95))
+
+p_10 <- f_plot_coef(model.10levels,2:10,
+          var_name = "vaccinated_level_10",
+          title_plot = "10 Categories for Vaccination Level")
+# p_10
+```
+
+```{r}
+## without outliers (below 10% CFR) ------
+model_noOutliers <- MASS::glm.nb(deaths~vaccinated_level+
+                            location+month+offset(log(cases)), 
+              data = filter(df_model,cfr<0.1))
+# nobs(model_noOutliers)
+# exp(model_noOutliers$coefficients[2:4])
+# exp(confint(model_noOutliers,2:4, level=0.95))
+p_noOut <- f_plot_coef(model_noOutliers,
+                       title_plot = "Only CFR<10% considered")
+# p_noOut
+grid.arrange(p_10,p_noOut,nrow=1)
+```
+
+We can observe that the confidence interval differ among levels, due to the number of observations in each category. It seems that the bigger reduction occurred in the countries that have achieved a vaccination level above 90%, For almost all vaccination levels the statistical evidence is strong enough to reject the null hypothesis of no effect of vaccines. We observe an expected result: the higher the vaccination rate the greater the reduction in the CFR for COVID-19. \newline
+
+For the model with removed observations, we got similar results as the original model, the greater the vaccination rate the lower the CFR for COVID-19. This model has narrow confidence interval, meaning that is more efficient in rejecting the null hypothesis of no effect. \newline
+
+Next are presented the relative risk of the mixed linear model, using country as a random effect. The confidence intervals for the RR of the original model estimated using bootstrap are also presented.
+
+```{r}
+## country as random effects ------
+library(lme4)
+# takes forever to compute - option: load it from previous run
+# model_random <- lme4::glmer.nb(deaths~(1|location)+vaccinated_level+
+#                                  month+offset(log(cases)),
+#                                data=df_model)
+# saveRDS(model_random,"randomModel.rds")
+model_random <- read_rds("../randomModel.rds")
+
+# nobs(model_random)
+# ranef(model_random)
+point <- exp(fixef(model_random)[2:4])
+ci <- exp(confint(model_random,3:5,method="Wald", level=0.95))
+
+estimates <- data.frame(mid=point,
+                          lower_bound=ci[,1],
+                          upper_bound=ci[,2])
+  
+names(estimates) <- c("Estimated Coefficient",
+                      "Lower Bound C.I. 95%",
+                      "Upper Bound C.I. 95%")
+
+estimates <- estimates %>% 
+  rownames_to_column() %>% 
+  rename(Variable=rowname) %>% 
+  mutate(Variable=str_replace(Variable,"vaccinated_level",
+                              paste0("Vaccinated Level",": ")))
+# Plot
+p_random <- estimates %>% 
+  mutate(Variable=str_remove(Variable,paste0("Vaccinated Level",": "))) %>% 
+  ggplot(aes(Variable, `Estimated Coefficient`))+
+  geom_point(col="red")+
+  geom_errorbar(aes(ymin=`Lower Bound C.I. 95%`,
+                    ymax=`Upper Bound C.I. 95%`))+
+  coord_flip()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  labs(x="Vaccinated Level", y=paste0("Relative Risk (RR): ",
+                             "Vaccinated Level"),
+       title = "Mixed Linear Effects Model (Country as Random)")
+```
+ 
+ 
+ 
+```{r}
+# Bootstrap
+# Source: https://stackoverflow.com/questions/54749641/bootstrapping-with-glm-model
+# it took really really long!
+# UNCOMMENT TO GENERATE THE OBJECT AGAIN if not, load it
+
+# data structure for results
+# nboot <- 1000
+# bres <- matrix(NA,
+#                nrow=nboot,
+#                ncol=4,
+#                dimnames=list(rep=seq(nboot),
+#                              coef=names(coef(model.nb2))[1:4]))
+# # bootstrap
+# set.seed(101)
+# bootsize <- nrow(df_model)
+# df_boot <- df_model
+# for (i in seq(nboot)) {
+#   bdat <- df_boot[sample(nrow(df_boot),size=bootsize,replace=TRUE),]
+#   bfit <- update(model.nb2, data=bdat)  ## refit with new data
+#   bres[i,] <- coef(bfit)[1:4]
+# }
+# # # output
+# 
+# saveRDS(bres,"boot.rds")
+bres <- readRDS ("../boot.rds")
+
+boot_estimates <-
+  data.frame(mean_est=colMeans(exp(bres)),
+           t(apply(exp(bres),2,quantile,c(0.025,0.975))))
+
+# plot
+p_boot <- boot_estimates[2:4,] %>% 
+  rownames_to_column() %>% 
+  mutate(Variable=str_remove(rowname,"vaccinated_level")) %>% 
+  ggplot(aes(Variable, mean_est))+
+  geom_point(col="red")+
+  geom_errorbar(aes(ymin=X2.5.,
+                    ymax=X97.5.))+
+  coord_flip()+
+  geom_hline(yintercept = 1, linetype="dashed")+
+  labs(x="Vaccinated Level", y=paste0("Relative Risk (RR): ",
+                             "Vaccinated Level"),
+       title = "Bootstrap estimates of Original Model")
+grid.arrange(p_random,p_boot,nrow=1)
+```
+
+We observe the same pattern as before, a higher vaccination rate is associate it with a lower CFR for COVID-19, especially at vaccination levels above 75%. We notice small differences in the estimates and in the confidence intervals, but in both cases we can reject the null hypothesis that the vaccination has no effect on the CFR for COVID-19.
+
+# Discussion 
+
+This project seeks to study the effect of vaccination levels in reducing the CFR for COVID-19. The main findings are that higher vaccination rates are associated with lower CFR for COVID-19, making vaccination a good policy strategy to pursue to reduce the death toll of the pandemic. The obtained results are in line with previous studies conducted ([Liang et al., 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/)), and provide further evidence in the efficacy of vaccination in protecting human lives. \newline
+
+The model suffers from some inherent problems, that future analysis could explore more in deep to improve the robustness of the results:
+
+- **Spatial correlation**: COVID-19 data presents some spatial autocorrelation, as the disease is infectious and spreader along neighbor countries through immigration. This effect is partially controlled by adding a dummy variable for each country.
+- **Differences in COVID-19 cases and deaths detection**: The testing capabilities differ from each countries, so the data relative to cases and deaths attributed to COVID-19 is only the best guess of each country, and may differ significantly. Other studies could overcome this issue by analyzing the excess deaths attribute to COVID-19, rather than the identified deaths.
+- **Time series autocorrelation**: The panel data could suffer from time series auto-correlation, as observations depend on the previous state of each country.
+- **Temporal change in characteristics across countries**: The dummy variable per country added to the model control for each country individual characteristics, but under the assumption that these traits haven't suffered major changes in the time period analyzed (2021-12 to 2022-2).
+- **Observational unit**: The data used correspond to monthly summaries for each country, so all inference about vaccines effectiveness in reducing the CFR for COVID-19 are only valid for this unit of analysis. This study cannot infer anything about the effectiveness of vaccines at the individual level, nor provide an statement about the causal effect of vaccines. Other studies have proved through clinical randomized trials the individual efficacy of the vaccines (Polack et al., 2020)
+
+# Conclusion
+
+A statistical significant relationship was found, a higher vaccination rate reduce the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 18% [C.I. 95%: -26%;-10%] reduction in the CFR for COVID-19, countries in the 50%-75% group a 17% reduction [-26%;-7%] and countries in the 75%-100% group a 37% reduction [-46%;-27%]. Additionally, a a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.27% [C.I. 95%: -6.04%; -2.47%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
+
+There is strong statistical evidence pointing in the association of countries with higher COVID-19 vaccination rates and lower case mortality rate due to COVID-19. This implies that each country with current lower vaccination rates should promote a vaccination strategy in this year to reduce the death burden of the on-going COVID-19 pandemic.\newline
+
+With this we can finalize our post series regarding COVID-19 vaccination effect. There is much to be explored yet, but I hope this was a good exercise to show the power of programming languages along with open data sources to draw meaningful conclusions for society.
+
+# Acknowledgement {-}
+
+This post was created based on my personal project for the course "STA207:Statistical Methods for Research II", part of my M.Sc. in Statistics and Data Science. For all the valuable comments and feedback I received during my project, I acknowledge the instructor Professor Shizhe Chen and his materials for statistical methods of research. I also acknowledge the following classmates for their valuable feedback and comments during the project development: Yinan Cheng, Shuyu Guo, Kyung Jin Lee, Katherine Cheng, Oscar Rivera and Jedidiah Harwood. I will also acknowledge my friend Alonso Perez for all valuable comments on this post!
+
+# References {-}
+
+- Course Notes STA207 UC Davis Winter Quarter 2022. Professor Shizhe Chen.
+- World Health Organization (WHO). (2022). WHO Coronavirus (COVID-19) Data. See: https://covid19.who.int/info
+- Our World in Data. (2022). Coronavirus (COVID-19) Vaccinations Data. https://ourworldindata.org/covid-vaccinations
+- Liang, L. L., Kuo, H. S., Ho, H. J., & Wu, C. Y. (2021). COVID-19 vaccinations are associated with reduced fatality rates: Evidence from cross-county quasi-experiments. *Journal of Global Health, 11.*
+- Passarelli-Araujo, H., Pott-Junior, H., Susuki, A. M., Olak, A. S., Pescim, R. R., Tomimatsu, M. F., ... & Urbano, M. R. (2022). The impact of COVID-19 vaccination on case fatality rates in a city in Southern Brazil. *American Journal of Infection Control.*
+- Haldar, A., & Sethi, N. (2020). The effect of country-level factors and government intervention on the incidence of COVID-19. *Asian Economics Letters, 1*(2), 17804.
+- Florian Hartig (2022). DHARMa: Residual Diagnostics for Hierarchical (Multi-Level / Mixed) Regression Models. R package version 0.4.5. http://florianhartig.github.io/DHARMa/
+- Polack, F. P., Thomas, S. J., Kitchin, N., Absalon, J., Gurtman, A., Lockhart, S., ... & Gruber, W. C. (2020). Safety and efficacy of the BNT162b2 mRNA Covid-19 vaccine. *New England Journal of Medicine*.

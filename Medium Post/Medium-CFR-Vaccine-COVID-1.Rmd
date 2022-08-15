@@ -1,0 +1,473 @@
+---
+title: "Exploring the effects of vaccines at country level to reduce the case fatality rate for COVID-19"
+author: "Pablo Busch"
+date: "August 2022"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    toc: yes
+    toc_depth: 4
+    toc_float: yes
+---
+```{r global_options, include=FALSE}
+# knitr::opts_chunk$set(fig.pos = 'H')
+# knitr::opts_chunk$set(fig.pos = 'H', message=F, echo = T, warning=F)
+knitr::opts_chunk$set(fig.pos = 'H', 
+                      fig.width=12, fig.height=8,
+                      message=F, echo = F, warning=F)
+```
+
+
+Hi everyone! For my first Medium posts I wanted to do something fun and interesting. In this post I want to provide a real-world example of the power of a programming language (R in this case, but Python or many other will also work to do this type of analysis), in combination with open data-sources to gather evidence and make data-driven decisions!\newline
+
+The purpose of these series of posts is to look at the COVID-19 mortality and vaccination data per country, to check trends and see if we can draw any major conclusions on the efficacy of the vaccines. The posts will be divided into:
+
+- **Data preparation and exploration**: The purpose of this post is to present the sources of the data and some nice figures to better understand it. All the code is available in [GitHub](https://github.com/pmbusch/COVID19-Vaccine-CFR): starting from loading the data of interest, cleaning it, merging it into a common data frame and creating some nice exploratory figures. 
+- **Statistical model**: With all the data collected and ready for analysis, we can also fit a statistical model to test the effectiveness of vaccines in reducing the mortality rate of COVID-19. This exercise is just for the purpose of learning and showing how an ecological model works, because we already know from multiple scientific studies conducted at the individual level that COVID-19 vaccines have a high efficacy in preventing COVID-19 deaths (see for example [Polack et.al 2020](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)). \newline
+
+The purpose of these series of posts is to show how we can use data to create meaningful figures and statistical models to provide solid fact-based evidence for decision making. All the analysis and figures were done using R, so if you want to explore how everything in this post was created please visit my GitHub page with all the [code](https://github.com/pmbusch/COVID19-Vaccine-CFR).
+
+That being said, let's see what the world data of COVID-19 and vaccination status has to offer us!\newline
+
+# Introduction of the problem
+
+At the present moment (August 2022), the on-going COVID-19 pandemic has taken more than 6 million human lives worldwide since it started on 2020. Novel vaccines were developed at the end of 2020 to reduce the mortality rate associated with this respiratory infectious disease. \newline
+
+There has been a different magnitude and rate of vaccine adoption among countries, which generates diverse data that could help us answer whether countries with higher vaccination rates are associated with lower COVID-19 case fatality rates (CFR). In the next sections I will define more precisely what CFR is, but for now let's define it simply as the total deaths divided by the total cases of COVID-19. The CFR gives us an estimate of the percentage of people that die once they got the disease. Obviously, a lower CFR is desirable. \newline
+
+As mentioned before, it has already been proved in multiple independent scientific studies that vaccines do work in reducing the CFR of COVID-19 
+deaths (see [here](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)), this is just an academic exercise to play with some data and statistical models for a problem in which we already know the answer. \newline
+
+# Available Data
+
+## COVID-19 Cases and Deaths
+
+Let's start with COVID-19 cases and deaths per country data. As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accessible to the general public ([link to download](https://covid19.who.int/info)). The data contains COVID-19 daily related cases and deaths for a variety of countries. \newline
+
+Here are the resolutions of this data set:
+
+- Temporal resolution: Daily, from 2020 (January) to 2022 (present)
+- Geographical resolution: Country level (237 different countries) and world region (7 in total)
+- Main outcome to study: Case Fatality Rate (CFR). It is a measurement of amount of patients with COVID-19 that died ($CFR=\frac{Deaths}{Cases}$)
+
+
+## Vaccination data
+
+As we are interested in exploring the effect of vaccines on the case fatality rate for COVID-19, we also need vaccination data per country and month. Our World in Data is a data organization that compiles country level data from multiple sources to make research more easy. They have a made a strong effort to compile a database with the total number of people fully vaccinated (people who received all doses prescribed by the vaccination protocol) by date and country. The vaccination data is available [here](https://ourworldindata.org/covid-vaccinations), with a public [GitHub](https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations). Here are the resolutions of the data set: \newline
+
+- Temporal resolution: Daily, from 2020 (December) to 2022 (present)
+- Geographical resolution: Country (235 different countries)
+- Explanatory variable: Total people vaccinated per 100 habitats (or percentage of people fully vaccinated)
+
+This vaccination metric was chosen for several reasons: It is already normalized by total population in each country, so it is comparable independent of the size of each country. One caveat is that only considers people that have completely fulfill the dosage requirements for the vaccine administered, whether is 1 or 2 doses required. In the scope of this post I will not consider the vaccine company or version (Sinovac, Pfizer, Moderna, among others), but it is a factor that could be considered in future posts. \newline
+
+# Data preparation
+
+We finally finished with all introductions, is time to start introducing all the data. First we need to load both data sets, and merge them based on the country name. This will be the first difficulty, as the country names sometimes differ in the text composition, or sometimes in the geographical delimitation (some countries exist in the WHO data set, but are not present in the OurWorldInData, or viceversa). \newdata
+
+I decided to aggregate all mortality and vaccination data into monthly units. I believe a month is a good aggregation unit that could represent the pandemic status for that country for the CFR (it takes a 30 day data on cases and deaths to estimate the CFR) and for the vaccination status. Other aggregations are possible, such as daily (too much noise) or quarterly (less observations). This is just one of the many modelling decisions that I had to take for this analysis. \newline
+
+```{r}
+# libraries
+library(tidyverse) # data manipulation
+library(lubridate) #time format
+library(gridExtra) # plot manipulation
+library(plotly) # interactive plots
+library(skimr) # summary statistics
+library(flextable) #table format for hhtml
+theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
+```
+
+As the COVID-19 disease usually takes two weeks to fully develop into a mortal disease, a two week shift in the death data (bring backward) was considered to align cases with deaths in the estimation of the monthly CFR for each country. \newline
+
+```{r}
+# COVID-19 Data -----
+# We start by loading the WHO data, and doing some manipulations: shifting the deaths two weeks early to match temporary with the cases, filter the data to remove the current August month (incomple data), and create some special categories in R (factors).
+
+# load WHO COVID-19 data
+covid <- read_csv("https://covid19.who.int/WHO-COVID-19-global-data.csv")
+
+# Data wrangling (preparation for analysis)
+
+# shift deaths two weeks early
+covid <- covid %>% 
+  group_by(Country) %>% 
+  mutate(deaths_shift=lead(New_deaths,14,
+                          order_by = Date_reported)) %>% 
+  ungroup()
+
+
+# filter to remove August 2020
+covid <- covid %>% filter(Date_reported<"2022-08-01") 
+
+## Create time factor variable, splitting years in half
+halfYear_levels <- c("2020-1","2020-2","2021-1",
+                     "2021-2","2022-1","2022-2")
+month_levels <- c("2020-12","2021-1","2021-2","2021-3",
+                  "2021-4","2021-5","2021-6","2021-7","2021-8",
+                  "2021-9","2021-10","2021-11","2021-12",
+                  "2022-1","2022-2","2022-3","2022-4","2022-5",
+                  "2022-6","2022-7")
+
+covid <- covid %>%  
+  mutate(period=case_when(
+    Date_reported < as.Date("2020-07-01") ~ "2020-1",
+    Date_reported < as.Date("2021-01-01") ~ "2020-2",
+    Date_reported < as.Date("2021-07-01") ~ "2021-1",
+    Date_reported < as.Date("2022-01-01") ~ "2021-2",
+    Date_reported < as.Date("2022-07-01") ~ "2022-1",
+    Date_reported < as.Date("2023-01-01") ~ "2022-2",
+    T ~ "other") %>% factor(levels=halfYear_levels),
+    month=paste(year(Date_reported),month(Date_reported),sep="-") %>% 
+      factor(levels =month_levels))
+```
+
+We also need to clean the data. This is a really important step, as data sets with this amount of observations always have weird things inside. I took a simple approach here and remove all observations with negative deaths or cases. To improve the estimation and robustness of the analysis, the CFR was estimated for each country only in the months in which there were at least 100 cases and more than 10 COVID-19 deaths.
+
+```{r}
+# clean data: remove negative cases and deaths
+covid <- covid %>% 
+  mutate(New_deaths=deaths_shift) %>% 
+  filter(New_cases>=0 & New_deaths>=0)
+
+## need to summarize COVID data to periods of time: MONTHS
+covid_period <- covid %>% 
+  group_by(WHO_region,Country,month) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% ungroup() %>% 
+  filter(cases>99 & deaths>9) %>%  # filter to remove unreliable periods
+  mutate(cfr=deaths/cases)  # we calculate CFR for each given month
+```
+
+```{r}
+## Same data preparation process for the vaccination data
+
+# VACCINATION DATA -----
+## Load vaccination data
+vaccination <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv")
+
+# Filter to remove August 2022
+vaccination <- vaccination %>% 
+  filter(date<"2022-08-01")
+
+# We summarized vaccination data based on the a time period: MONTH
+## Create time factor variable, splitting years in half
+vaccination <- vaccination %>% 
+  mutate(period=case_when(
+    date < as.Date("2020-07-01") ~ "2020-1",
+    date < as.Date("2021-01-01") ~ "2020-2",
+    date < as.Date("2021-07-01") ~ "2021-1",
+    date < as.Date("2022-01-01") ~ "2021-2",
+    date < as.Date("2022-07-01") ~ "2022-1",
+    date < as.Date("2023-01-01") ~ "2022-2",
+    T ~ "other") %>% factor(levels=halfYear_levels),
+    month=paste(year(date),month(date),sep="-") %>% factor(levels=month_levels))
+
+# take the average over the period: NA is 0
+vaccination_period <- vaccination %>% 
+  mutate(vaccinated=replace_na(people_fully_vaccinated_per_hundred,0)) %>% 
+  group_by(location,month) %>% 
+  summarise(vaccinated=mean(vaccinated,na.rm=T)) %>% ungroup()
+```
+
+
+
+```{r}
+# Ok, to recapitulate now we have two different data frame that contains data grouped at the month level for each country. Our next mission is to join them, using the country name for that! As the country names sometimes differ, I had to manually correct the records of some countries for the join: all is recorded in the code below!
+
+  # JOIN DATA -----
+
+## Change countries name to increase matching (manually, based on visual inspection)
+covid <- covid %>% 
+  mutate(Country=case_when(
+    Country=="Bolivia (Plurinational State of)" ~ "Bolivia",
+    Country=="Bonaire" ~ "Bonaire Sint Eustatius and Saba",
+    Country=="Brunei Darussalam" ~ "Brunei",
+    Country=="Cabo Verde" ~ "Cape Verde",
+    Country=="Côte d’Ivoire" ~ "Cote d'Ivoire",
+    # str_detect(Country,"C.te d.Ivoire") ~ "Cote d'Ivoire", 
+    Country=="Curaçao" ~ "Curacao",
+    # str_detect(Country,"Cura.ao") ~ "Curacao",
+    Country=="Democratic Republic of the Congo" ~ "Democratic Republic of Congo",
+    Country=="Falkland Islands (Malvinas)" ~ "Falkland Islands",
+    Country=="Faroe Islands" ~ "Faeroe Islands",
+    Country=="Iran (Islamic Republic of)" ~ "Iran",
+    Country=="Kosovo[1]" ~ "Kosovo",
+    Country=="Lao People's Democratic Republic" ~ "Laos",
+    Country=="occupied Palestinian territory, including east Jerusalem" ~ "Palestine",
+    Country=="Pitcairn Islands" ~ "Pitcairn",
+    Country=="Republic of Korea" ~ "South Korea",
+    Country=="Republic of Moldova" ~ "Moldova",
+    Country=="Russian Federation" ~ "Russia",
+    Country=="Sint Maarten" ~ "Sint Maarten (Dutch part)",
+    Country=="Syrian Arab Republic" ~ "Syria",
+    Country=="The United Kingdom" ~ "United Kingdom",
+    Country=="Timor-Leste" ~ "Timor",
+    Country=="United Republic of Tanzania" ~ "Tanzania",
+    Country=="United States of America" ~ "United States",
+    Country=="Venezuela (Bolivarian Republic of)" ~ "Venezuela",
+    Country=="Viet Nam" ~ "Vietnam",
+    T ~ Country))
+
+# let's redo the monthly aggregation
+## need to summarize COVID data to periods of time: MONTHS
+covid_period <- covid %>% 
+  group_by(WHO_region,Country,month) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% ungroup() %>% 
+  filter(cases>99 & deaths>9) %>%  # filter to remove unreliable periods
+  mutate(cfr=deaths/cases)  # we calculate CFR for each given month
+
+# Join countries from both data sources
+# countries_covid <- unique(covid$Country)
+# countries_vaccine <- unique(vaccination$location)
+# countries_vaccine <- data.frame(countries_vaccine=countries_vaccine,
+#                              x=1)
+# countries_covid <- data.frame(countries_covid=countries_covid,
+#                               y=1)
+# 
+# # are the codes similar?
+# countries_vaccine %>%
+#   left_join(countries_covid,by=c("countries_vaccine"="countries_covid")) %>%
+#   pull(y) %>% sum(na.rm=T)
+# 215 countries match
+
+
+# join based on location - I join it to the Vaccination, so I can get months with vaccine information for each country
+df <- vaccination_period %>% 
+  left_join(covid_period, by=c("location"="Country",
+                               "month")) %>% 
+  filter(cases>=0 & deaths>=0 & !(is.na(vaccinated)))
+
+# df$location %>% unique() %>% length()
+```
+
+As I mentioned above, I had to join both data sets based on the country name. As the country names sometimes differ by small details, I  manually corrected them to increase the number of matches (for example: United States and United States of America were matched together). The resulting data frame for analysis contains data on 189 different countries, not bad at all! For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each country. \newline
+
+```{r}
+# Let's create some convenient labels for each world region, and classify the vaccination levels into discrete categories! 
+
+## More convenient labels for region
+df <- df %>% 
+  mutate(region_name=case_when(
+    WHO_region=="EMRO" ~ "Eastern Mediterranean",
+    WHO_region=="EURO" ~ "Europe",
+    WHO_region=="AFRO" ~ "Africa",
+    WHO_region=="AMRO" ~ "Americas",
+    WHO_region=="WPRO" ~ "Western Pacific",
+    WHO_region=="SEARO" ~ "South-East Asia") %>%
+      factor(levels=c("Americas","Europe","Eastern Mediterranean",
+                      "Western Pacific","South-East Asia","Africa")),
+  location=as.factor(location))
+
+# Vaccination level factor variable
+df <- df %>% 
+  mutate(vaccinated_level=case_when(
+    vaccinated<25 ~ "0%-25%",
+    vaccinated<50 ~ "25%-50%",
+    vaccinated<75 ~ "50%-75%",
+    vaccinated<100 ~ "75%-100%",
+    T ~"other") %>% factor(levels=c("0%-25%","25%-50%",
+                                    "50%-75%","75%-100%")),
+    vaccinated_level_10=case_when(
+    vaccinated<10 ~ "0%-10%",
+    vaccinated<20 ~ "10%-20%",
+    vaccinated<30 ~ "20%-30%",
+    vaccinated<40 ~ "30%-40%",
+    vaccinated<50 ~ "40%-50%",
+    vaccinated<60 ~ "50%-60%",
+    vaccinated<70 ~ "60%-70%",
+    vaccinated<80 ~ "70%-80%",
+    vaccinated<90 ~ "80%-90%",
+    vaccinated<101 ~ "90%-100%",
+    T ~"other") %>% factor(levels=c("0%-10%","10%-20%","20%-30%",
+                                    "30%-40%","40%-50%","50%-60%",
+                                    "60%-70%","70%-80%","80%-90%",
+                                    "90%-100%")))
+# df$vaccinated_level_10 %>% table()
+
+# save data frame for future use in next post
+saveRDS(df,"df.rds")
+```
+
+# Exploratory Data Analysis
+
+We finally finished with all the data preparation, thanks for sticking with me to this point. Now comes the exploratory part, which will be much more fun and interactive! \newline
+
+Here are some summary statistics for the whole working data. 
+
+```{r}
+# The code seems daunting, but most of it is to provide a clear table as output, that facilities the reading!
+
+# function to estimate summary statistics:
+f.sum <- function(x){
+  return(
+    data.frame(
+     Mean=mean(x,na.rm=T),
+     sd=sd(x,na.rm=T),
+     Min=min(x,na.rm=T),
+     Median=quantile(x,0.5,na.rm=T),
+     Max=max(x,na.rm = T)
+    )
+  )
+}
+
+# average number of months per county:
+avg_country_month <- df %>% 
+  group_by(location) %>% tally()
+
+# Table with summary statistics
+rbind(`Number of months per country`=f.sum(avg_country_month$n),
+      `COVID-19 Cases per Month`=f.sum(df$cases),
+      `COVID-19 Deaths per Month`=f.sum(df$deaths),
+      `Case Fatality Rate (CFR) %`=f.sum(df$cfr*100),
+      `People Fully Vaccinated (%)`=f.sum(df$vaccinated)) %>% 
+  rownames_to_column() %>% rename(Metric=rowname) %>% 
+  flextable() %>% autofit() %>% 
+  colformat_double(digits=2) %>% 
+  colformat_double(i=2:3,digits=0) %>% 
+  bold(part = "header") %>% 
+  set_caption(paste0(
+    "Summary Metrics: Monthly observations per country. n = ",nrow(df))) %>% 
+  footnote(i=1,j=1,
+           as_paragraph(paste0(length(unique(df$location)),
+                               " Countries considered")))
+
+rm(avg_country_month)
+```
+
+From this summary table we can already observe some interesting facts:
+
+- For the 189 countries considered, we have an average number of months with an estimation for the CFR of 12.43, with countries with only 1 month of data and countries with 20 months of data.
+- The CFR has a mean value of 1.86%, but a really high variance (the variance is the square of the sd, so in this case will be 8.53%). The range of the metric is also really high, with countries with values of CFR above 75% in a given month.
+- We observe also a high dispersion in the vaccination level across countries, with some countries reaching more than 90 people fully vaccinated per 100 people, and countries with no vaccination at all.
+
+Now is time to make some figures for reach data set, hopefully this can describe better all the valuable information we have!
+
+## COVID-19 Data
+
+We know that the COVID-19 pandemic has evolve over time, so it is worth to take a look at the time series of the COVID-19 data. Our main outcome of interest is the case fatality rate (CFR) for COVID-19. Let's look at the total case fatality rate for COVID-19 for the entire pandemic period. Thanks to [plotly](https://plotly.com/r/) library we can make our figures interactive, so for all figure you can explore each individual point with your mouse pointer! Please take a time to play with the figures and learn new insights! \newline
+
+Remember that all the data was grouped into monthly units (from December 2020 to July 2022) for each country, so each point in the plot represents a month for a given country.
+
+```{r}
+p_cfr_all<- df %>% 
+  filter(WHO_region!="Other") %>% 
+  rename(Region=region_name) %>% 
+  ggplot(aes(Region,cfr))+
+  geom_jitter(alpha=0.5,aes(text=paste0(
+    "CFR: ",round(cfr*100,2),"%",
+    "\n Country: ",location,
+    "\n Month: ",month)))+
+  geom_boxplot(alpha=0.5,outlier.alpha = 0)+
+  coord_flip()+
+  scale_y_continuous(labels = scales::percent, limits=c(0,0.1))+
+  labs(x="WHO Region",y="Case Fatality Rate COVID-19 [%]",
+       caption = "Cumulated cases and deaths for the period December 2020 to July 2022 \n Only CFR below 10% are shown")
+
+ggplotly(p_cfr_all)
+
+
+# percentage above 10%
+# sum(nrow(filter(df,cfr>0.1)))/nrow(df)*100
+```
+
+We can see that the case fatality rate is around 2% for the majority of the observations gathered, that correspond at monthly rates for each country. We observe variations across each country and across WHO regions, with Europe and Western Pacific with the lowest CFR. \newline
+
+Let's look at the case fatality rate over time in a more classic time series plot (each color is a world region):
+
+```{r}
+# Time series CFR - NEED TO CONSIDER WEIGHTED AVERAGE
+p_cfr_time <- df %>% 
+  group_by(month,region_name) %>%
+  summarize(cfr=mean(cfr,na.rm=T)) %>%
+  rename(Region=region_name) %>% 
+  ggplot(aes(month,cfr,
+             col=Region,
+             group=Region
+             ))+
+  geom_line(size=1.5,
+            aes(text=paste0("CFR: ",round(cfr*100,2),"%")))+
+  # geom_boxplot()+
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0,0.1),
+                     # breaks=c(0,0.05,0.1)
+                     )+
+  theme(axis.text.x = element_text(angle =-45,vjust=-0.5))+
+  labs(x="",y="Case Fatality Rate COVID-19 [%]",col="WHO Region")
+
+ggplotly(p_cfr_time)
+
+```
+
+We observe a higher value in the CFR in the early times of the pandemic, and an important reduction in the most recent times. We also observe important peaks and differences across WHO regions, probably due to different variations of the COVID-19 virus and different climatic seasons (northern and southern hemisphere). Overall we observe a reduction in the recent time, could it be attributed to the COVID-19 vaccines?
+
+## Vaccination Data
+
+The next figure shows the current vaccination status for each country at the end of July 2022. We observe important differences in the access to vaccines across WHO regions, and within countries in the same region (each point in the figure represents a country). For example, Europe present a high vaccination rate, but we observe important differences in the vaccination level within the countries of Europe. The distribution of vaccination levels seems to be two-modal, with some countries with high vaccination and some with really low. \newline
+
+Again, the interactive tool of the figure make it easier to explore the condition for each country!
+
+```{r}
+p_vacc_all <- df %>% 
+  filter(month=="2022-7") %>% #July 2022 
+  rename(Region=region_name) %>% 
+  ggplot(aes(Region,vaccinated))+
+  geom_boxplot(alpha=0.5,outlier.alpha = 0)+
+  geom_jitter(alpha=0.5, size=2,
+              aes(text=paste0(
+                "People Fully Vaccinated: ",round(vaccinated,2),"%",
+                "\n Country: ",location)))+
+  coord_flip()+
+  labs(x="WHO Region",y="People Fully Vaccinated [%]. July 2022",
+       caption = "Vaccination status at July 2022")
+
+ggplotly(p_vacc_all)
+```
+
+### CFR vs Vaccination Rates
+
+Let's make a comparison between the percentage of vaccinated people and the monthly CFR for each country. This comparison directly relates to our question of interest: do vaccines reduce the CFR? The following boxplot summarizes the case fatality rate over different levels of vaccination in each month for each country. The analysis is divided by world region:
+
+```{r}
+p_vac_cfr_box <- df %>% 
+  filter(!(is.na(WHO_region))) %>% 
+  mutate(vaccinated_level=fct_rev(vaccinated_level)) %>% 
+  ggplot(aes(region_name,cfr,col=vaccinated_level))+
+  geom_boxplot()+
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0,0.1)
+  )+
+  coord_flip()+
+  # theme(axis.text.x = element_text(angle =-45,vjust=-0.5))+
+  labs(col="Percentage of People \n Fully Vaccinated [%]",
+       x="WHO Region",
+       y="Case Fatality Rate COVID-19 [%]",
+       caption="Each point represents a country summary statistic for each month")
+    # guides(color = guide_colorbar(reverse = T))
+
+ggplotly(p_vac_cfr_box) %>% layout(boxmode='group')
+```
+
+We observe for each region a clear reduction in the CFR for COVID-19 associated with higher vaccination levels (to see this simply compared the purple-low vaccination to the red-high vaccination CFR. This reduction occur both in the average value and in the **variation across countries in each month**. This is interesting, as it has a double effect in reducing the variance of CFR as well: every country with high vaccination rates is in the low spectrum of CFR. Point to the vaccines! \newline
+
+
+We do observe that sometimes the middle vaccination categories (blue and green) overlap each other, and in some regions the CFR reduction effect is not clear. This could happen due to several reasons, such as border effects in the classification (the data was discretized a numeric variable into a bin category), noise in the data or higher efficacy of vaccines above certain threshold. Nonetheless, the figure is a great summary of information: it shows both the efficacy of vaccines and the vaccination state per world region. We CAN  observe that some regions are left with low vaccination levels, like Africa. The situation is also true for some countries inside each region. \newline
+
+This figure seems to support our main hypothesis of reduction of CFR in countries with higher vaccination rates. In the next post we will construct a statistical model to test this hypothesis formally. For now, I think this great figure is a nice way to end this post with some supporting evidence that vaccines do work and reduce the CFR for COVID-19! \newline
+
+Please read the second part of this post for the formal statistical analysis to test our hypothesis. We will use all the data gathered in this post to create a formal model and draw more robust inference in the effect of vaccines!
+
+# Acknowledgement {-}
+
+This post was created based on my personal project for the course "STA207:Statistical Methods for Research II", part of my M.Sc. in Statistics and Data Science. For all the valuable comments and feedback I received during my project, I acknowledge the instructor Professor Shizhe Chen and his materials for statistical methods of research. I also acknowledge the following classmates for their valuable feedback and comments during the project development: Yinan Cheng, Shuyu Guo, Kyung Jin Lee, Katherine Cheng, Oscar Rivera and Jedidiah Harwood. I will also acknowledge my friend Alonso Perez for all valuable comments on this post!
+
+# References {-}
+
+- Course Notes STA207 UC Davis Winter Quarter 2022. Professor Shizhe Chen.
+- World Health Organization (WHO). (2022). WHO Coronavirus (COVID-19) Data. See: https://covid19.who.int/info
+- Our World in Data. (2022). Coronavirus (COVID-19) Vaccinations Data. https://ourworldindata.org/covid-vaccinations
+- Polack, F. P., Thomas, S. J., Kitchin, N., Absalon, J., Gurtman, A., Lockhart, S., ... & Gruber, W. C. (2020). Safety and efficacy of the BNT162b2 mRNA Covid-19 vaccine. *New England Journal of Medicine*.
+

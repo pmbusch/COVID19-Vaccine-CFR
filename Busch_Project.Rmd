@@ -141,16 +141,18 @@ covid <- covid %>%
   ungroup()
 
 
-# filter to remove March 2022
-covid <- covid %>% filter(Date_reported<"2022-03-01") 
+# filter to remove March 2022 - Updated to August
+covid <- covid %>% filter(Date_reported<"2022-08-01") 
 
 ## Create time factor variable, splitting years in half
 halfYear_levels <- c("2020-1","2020-2","2021-1",
-                     "2021-2","2022-1")
+                     "2021-2","2022-1","2022-2")
 month_levels <- c("2020-12","2021-1","2021-2","2021-3",
                   "2021-4","2021-5","2021-6","2021-7","2021-8",
                   "2021-9","2021-10","2021-11","2021-12",
-                  "2022-1","2022-2")
+                  "2022-1","2022-2","2022-3","2022-4","2022-5",
+                  "2022-6","2022-7")
+
 covid <- covid %>%  
   mutate(period=case_when(
     Date_reported < as.Date("2020-07-01") ~ "2020-1",
@@ -158,6 +160,7 @@ covid <- covid %>%
     Date_reported < as.Date("2021-07-01") ~ "2021-1",
     Date_reported < as.Date("2022-01-01") ~ "2021-2",
     Date_reported < as.Date("2022-07-01") ~ "2022-1",
+    Date_reported < as.Date("2023-01-01") ~ "2022-2",
     T ~ "other") %>% factor(levels=halfYear_levels),
     month=paste(year(Date_reported),month(Date_reported),sep="-") %>% 
       factor(levels =month_levels))
@@ -180,9 +183,9 @@ covid_period <- covid %>%
 ## Load vaccination data
 vaccination <- read_csv("https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv")
 
-# Filter to remove March 2022
+# Filter to remove March 2022 - Updated to August 2022
 vaccination <- vaccination %>% 
-  filter(date<"2022-03-01")
+  filter(date<"2022-08-01")
 
 # We summarized vaccination data based on the a time period: MONTH
 ## Create time factor variable, splitting years in half
@@ -193,6 +196,7 @@ vaccination <- vaccination %>%
     date < as.Date("2021-07-01") ~ "2021-1",
     date < as.Date("2022-01-01") ~ "2021-2",
     date < as.Date("2022-07-01") ~ "2022-1",
+    date < as.Date("2023-01-01") ~ "2022-2",
     T ~ "other") %>% factor(levels=halfYear_levels),
     month=paste(year(date),month(date),sep="-") %>% factor(levels=month_levels))
 
