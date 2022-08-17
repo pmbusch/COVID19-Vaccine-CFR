@@ -1,5 +1,5 @@
 ---
-title: "Part 2: Exploring the effects of vaccines at country level to reduce the case fatality rate for COVID-19"
+title: "Part 2- Data-driven decisions: Exploring the efficacy of vaccines to reduce the mortality risk for COVID-19"
 author: "Pablo Busch"
 date: "August 2022"
 output:
@@ -20,11 +20,11 @@ knitr::opts_chunk$set(fig.pos = 'H',
 ```
 
 
-Hi again! This second post about COVID-19 mortality and vaccination data is about fitting a statistical model to test the hypothesis that countries with higher vaccination rates over time have lower case fatality rate (CFR) of COVID-19. \newline
+Hi again! This second post about COVID-19 mortality and vaccination data is about fitting a statistical model to test the hypothesis that countries with higher vaccination rates over time have lower case fatality rate (CFR). In simple words: we want to prove that in countries with high percentage of people vaccinated, the COVID-19 is not as deadly as in the rest of the world. More simple words: we want to show with real world data that vaccines work! Spoiler alert: they work really well in preventing deaths for COVID-19! \newline
 
 In the first post we covered all the data part: starting from loading the data of interest, cleaning it and merging it into a common data set. We also presented some nice figures that support our hypothesis of the efficacy of vaccines! \newline
 
-Now we are going to get more serious and fit an actual model that will tell us whether our hypothesis holds or not, based on our assumptions and data. As a side note: this exercise is just for the purpose of learning and showing how an ecological model works, because we already know from multiple scientific studies conducted at the individual level that COVID-19 vaccines have a high efficacy in preventing COVID-19 deaths (see for example [Polack et.al 2020](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)). \newline
+Now we are going to get more serious and fit an actual statistical model that will tell us whether our hypothesis holds or not, based on our assumptions and data. As a side note: this exercise is just for the purpose of learning and showing how an ecological model works, because we already know from multiple scientific studies conducted at the individual level that COVID-19 vaccines have a high efficacy in preventing COVID-19 deaths (see for example [Polack et.al 2020](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)). \newline
 
 That being said, let's get to the statistical part, but first a small review of what other similar ecological studies have done. The term ecological in this context simply refers that our smallest unit of analysis is a group of population (countries in this case), rather than individuals. \newline
 
@@ -59,6 +59,7 @@ Where:
 - $\beta_{2,i}$ is the specific effect of the pandemic in each country
   - Note that other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
 - $\beta_{3,t}$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
+- $\epsilon_{i,t}$ are the unexplained errors in the model. A model is just a representation of the reality, so it is perfectly fine for our model not to be perfect (I will rather be extremely skeptic of a model that describes reality in a perfect way). We want the errors to be unbiased, that is for them to show no direction or preference, and hopefully to be small as possible. There are other assumptions regarding the error that I will test in the model diagnostics section. 
 
 The good thing of having a panel data, with several months of information is that it gives us enough observations to control for each country special characteristics. In simple terms, we can fit 184 coefficients in the model (one for each country) and still have enough degrees of freedom to capture the effect of the vaccination level on the CFR of COVID-19. You may wonder why is it important to "use" 184 coefficients in the countries. The answer is that it allows us to separate the vaccine effect for each country characteristics and context. As you may know, there are a lot of things inside a country that affect the CFR, such as income level, health infrastructure, quarantine measures, among others. The beauty of the country coefficients is that captures all that static heterogeneity and leave the vaccine effect untouched, as vaccination levels in each country are dynamic (changing) through the months! \newline
 
@@ -111,21 +112,23 @@ theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 df <- read_rds("df.rds")
 ```
 
-All the model fitting, tables and figures creation are done using R. All the code is available at my [GitHub](https://github.com/pmbusch/COVID19-Vaccine-CFR). Please visit it if you want to learn more about the code and R libraries used in this post! \newline 
+All right! Let's check what the main model results have to offer us! Before that, please remember that all the model fitting, tables and figures creation are done using R. All the code is available at my [GitHub](https://github.com/pmbusch/COVID19-Vaccine-CFR). Please visit it if you want to learn more about the code and R libraries used in this post! \newline 
 
-The following table shows the relative risk (fitted coefficients) for the vaccination level, along with the confidence intervals at 95% level. We observe that countries with vaccination rates between 25%-50% have a 18% reduction in the CFR for COVID-19, compared to countries in the 0%-25% vaccination group. This reduction increases with higher vaccination rates, as the reduction for the group 50%-75% is 17% and for the group 75%-100% is 37%.
+The following table shows the relative risk (fitted coefficients) for the vaccination level, along with the confidence intervals at 95% level. We observe that countries with vaccination rates between 25%-50% have a 18% reduction in the CFR for COVID-19, compared to countries in the 0%-25% vaccination group. This reduction is different for higher vaccination rates, as the reduction for the group 50%-75% is 17% and for the group 75%-100% is 37%.
 
 ```{r}
 # Model dataframe
 df_model <- df %>% 
   select(deaths,cfr,cases,vaccinated,vaccinated_level,
   vaccinated_level_10,location,month) %>% 
-  mutate(location_month=paste0(month,location)) %>% 
+  mutate(location_month=paste0(month,location)) %>%
+  mutate(location=relevel(location,ref=182)) %>%  #reference country: USA
   na.omit()
 
 # Model with categorical vaccinated level
 model.nb2 <- MASS::glm.nb(deaths~vaccinated_level+
-                            location+month+offset(log(cases)), 
+                            location+
+                            month+offset(log(cases)), 
               data = df_model) 
 # summary(model.nb2)
 point_vac <- exp(model.nb2$coefficients[2:4])
@@ -159,7 +162,7 @@ estimates %>%
 
 The same table can be presented visually with an error bar figure. In the figure we can see the estimated RR, along with the 95% confidence interval. Please remember that the estimated coefficients represent the relative change with respect to the reference case (Vaccination level between 0% and 25%).\newline 
 
-We can see important reduction associated with higher vaccination levels, meaning that countries with higher vaccination levels have a lower CFR, an it is an increasing relationship. Also, as the C.I. don't cross the reference line at 1, we can reject the null hypothesis of no effect of vaccination level on CFR at 95% level. 
+We can see important reduction associated with higher vaccination levels, meaning that countries with higher vaccination levels have a lower CFR, an it is an increasing relationship. Also, as the C.I. don't cross the reference line at 1, we can reject the null hypothesis of no effect of vaccination level on CFR at 95% level (vaccines work!). 
 
 ```{r, fig.width=6, fig.height=4}
 estimates %>% 
@@ -221,9 +224,11 @@ test_lr <- lmtest::lrtest(model.nb1,model.nb2)
 # test_lr
 ```
 
-The likelihood ratio test also rejected the null hypothesis of no vaccination level effect with a p-value of $8.676*10^{-9}$. \newline
+The likelihood ratio test also rejected the null hypothesis of no vaccination level effect with a p-value of $6.026*10^{-9}$. This means that there is really strong statistical evidence in support of the alternative hypothesis that vaccination levels have an effect on the CFR of COVID-19.\newline
 
-Here is also a summary of the other fitted coefficients estimated for each country and for each month (our control variables):
+These were all the coefficients fitted for our main explanatory variable of interest: vaccination levels. But remember the model also contained a lot of other coefficients related to each country and each month of the pandemic. Here I present two figures that show the coefficients for each country and month. \newline
+
+You can explore and check how well your country is doing in terms of CFR, relative to the reference country I chose for the model: United States. For example, my country Chile has a coefficient of 1.44. This can be interpreted that the CFR is 44% higher than in the United States, after taking into account the effect of vaccines and months. This could be explained due to several reasons, but it is not the purpose of this post! (*It is also an unfair comparison, as it does not consider the most effective strategy against COVID-19, vaccines! In this sense Chile could be doing better (or worse) depending on the vaccination campaign.*)
 
 ```{r}
 location_coefficients <- data.frame(coef=exp(model.nb2$coefficients)) %>% 
@@ -246,7 +251,7 @@ p_coef_country <- location_coefficients %>%
   geom_hline(yintercept = 1, linetype="dashed")+
   coord_flip()+
   guides(col=F)+
-  labs(x="WHO Region",col="",y="Relative Risk (RR): Country")
+  labs(x="World Region",col="",y="Relative Risk (RR): Country. Reference country: United States")
 
 ggplotly(p_coef_country)
 ```
@@ -255,8 +260,8 @@ ggplotly(p_coef_country)
 size_coef <- length(model.nb2$coefficients)
 
 # get coefficients for month
-point_month <- exp(model.nb2$coefficients[(size_coef-13):(size_coef)])
-ci_month <- exp(confint(model.nb2,(size_coef-13):(size_coef), level=0.95))
+point_month <- exp(model.nb2$coefficients[(size_coef-18):(size_coef)])
+ci_month <- exp(confint(model.nb2,(size_coef-18):(size_coef), level=0.95))
 
 estimates_month <- data.frame(mid=point_month,
                         lower_bound=ci_month[,1],
@@ -290,7 +295,7 @@ p_coef_month
 
 Overall we observe some interesting patterns:
 
-- Countries in Europe have a much lower relative risk compared to other countries. Other factors such as a healthier population or better health infrastructure could explain this effect. 
+- Countries in Europe have a much lower relative risk compared to other countries and the United States. Other factors such as a healthier population or better health infrastructure could help us explain this effect. The same goes (in reverse order) for African countryies and for a lot of American countries, with poor health services and lower income. 
 - We do observe a reduction in time of the relative risk, with the presence of some peaks probably associated with new variants of COVID-19 or climatic seasons in the north hemisphere (where the great majority of people live).
 
 ## Model Diagnostics
@@ -330,7 +335,7 @@ model.nb <- MASS::glm.nb(deaths~vaccinated+location+month+offset(log(cases)),
 # exp(confint(model.nb,"vaccinated", level=0.95)*10)
 ```
 
-The results shows that a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.27% [C.I. 95%: -6.04%; -2.47%], a similar result that the one obtained in [Liang et al. (2021)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/): -7.6% [C.I. 95%: -12.6%; -2.7%]. \newline
+The results shows that a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.32% [C.I. 95%: -6.09%; -2.52%], a similar result that the one obtained in [Liang et al. (2021)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/): -7.6% [C.I. 95%: -12.6%; -2.7%]. \newline
 
 Next is presented the model with 10 categories of vaccination level and the model only considering cases where the CFR was below 10%, to remove the presence of outliers. 
 
@@ -362,11 +367,11 @@ p_noOut <- f_plot_coef(model_noOutliers,
 grid.arrange(p_10,p_noOut,nrow=1)
 ```
 
-We can observe that the confidence interval differ among levels, due to the number of observations in each category. It seems that the bigger reduction occurred in the countries that have achieved a vaccination level above 90%, For almost all vaccination levels the statistical evidence is strong enough to reject the null hypothesis of no effect of vaccines. We observe an expected result: the higher the vaccination rate the greater the reduction in the CFR for COVID-19. \newline
+We can observe that the confidence interval differ among levels, probably due to different number of observations in each category. It seems that the bigger reduction occurred in the countries that have achieved a vaccination level above 90%, For almost all vaccination levels the statistical evidence is strong enough to reject the null hypothesis of no effect of vaccines. We observe an expected result: the higher the vaccination rate the greater the reduction in the CFR for COVID-19. \newline
 
 For the model with removed observations, we got similar results as the original model, the greater the vaccination rate the lower the CFR for COVID-19. This model has narrow confidence interval, meaning that is more efficient in rejecting the null hypothesis of no effect. \newline
 
-Next are presented the relative risk of the mixed linear model, using country as a random effect. The confidence intervals for the RR of the original model estimated using bootstrap are also presented.
+Next are presented the relative risk of the mixed linear model, using country as a random effect. The confidence intervals for the RR of the original model estimated using bootstrap are also presented. Bootstrap is a really interesting method that uses Monte Carlo and sampling theory to re-draw new samples, obtaining an empirical confidence interval for my coefficients! The draw back is that it takes a lot of computing resources, so I had to let my computer run for a while to get the results.
 
 ```{r}
 ## country as random effects ------
@@ -463,23 +468,23 @@ We observe the same pattern as before, a higher vaccination rate is associate it
 
 # Discussion 
 
-This project seeks to study the effect of vaccination levels in reducing the CFR for COVID-19. The main findings are that higher vaccination rates are associated with lower CFR for COVID-19, making vaccination a good policy strategy to pursue to reduce the death toll of the pandemic. The obtained results are in line with previous studies conducted ([Liang et al., 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/)), and provide further evidence in the efficacy of vaccination in protecting human lives. \newline
+Let's remember our original goal: to study the effect of vaccination levels in reducing the CFR for COVID-19. Our main findings were that higher vaccination rates are associated with lower CFR for COVID-19, making vaccination a good policy strategy to pursue to reduce the death toll of the pandemic. The obtained results are in line with previous studies conducted ([Liang et al., 2021](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8285768/)), and provide further evidence in the efficacy of vaccination in protecting human lives. \newline
 
 The model suffers from some inherent problems, that future analysis could explore more in deep to improve the robustness of the results:
 
 - **Spatial correlation**: COVID-19 data presents some spatial autocorrelation, as the disease is infectious and spreader along neighbor countries through immigration. This effect is partially controlled by adding a dummy variable for each country.
 - **Differences in COVID-19 cases and deaths detection**: The testing capabilities differ from each countries, so the data relative to cases and deaths attributed to COVID-19 is only the best guess of each country, and may differ significantly. Other studies could overcome this issue by analyzing the excess deaths attribute to COVID-19, rather than the identified deaths.
 - **Time series autocorrelation**: The panel data could suffer from time series auto-correlation, as observations depend on the previous state of each country.
-- **Temporal change in characteristics across countries**: The dummy variable per country added to the model control for each country individual characteristics, but under the assumption that these traits haven't suffered major changes in the time period analyzed (2021-12 to 2022-2).
+- **Temporal change in characteristics across countries**: The dummy variable per country added to the model control for each country individual characteristics, but under the assumption that these traits haven't suffered major changes in the time period analyzed (2021-12 to 2022-7).
 - **Observational unit**: The data used correspond to monthly summaries for each country, so all inference about vaccines effectiveness in reducing the CFR for COVID-19 are only valid for this unit of analysis. This study cannot infer anything about the effectiveness of vaccines at the individual level, nor provide an statement about the causal effect of vaccines. Other studies have proved through clinical randomized trials the individual efficacy of the vaccines (Polack et al., 2020)
 
 # Conclusion
 
-A statistical significant relationship was found, a higher vaccination rate reduce the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 18% [C.I. 95%: -26%;-10%] reduction in the CFR for COVID-19, countries in the 50%-75% group a 17% reduction [-26%;-7%] and countries in the 75%-100% group a 37% reduction [-46%;-27%]. Additionally, a a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.27% [C.I. 95%: -6.04%; -2.47%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
+A statistical significant relationship was found, a higher vaccination rate reduce the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 18% [C.I. 95%: -26%;-10%] reduction in the CFR for COVID-19, countries in the 50%-75% group a 17% reduction [-26%;-7%] and countries in the 75%-100% group a 38% reduction [-46%;-27%]. Additionally, a a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.32% [C.I. 95%: -6.09%; -2.52%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
 
 There is strong statistical evidence pointing in the association of countries with higher COVID-19 vaccination rates and lower case mortality rate due to COVID-19. This implies that each country with current lower vaccination rates should promote a vaccination strategy in this year to reduce the death burden of the on-going COVID-19 pandemic.\newline
 
-With this we can finalize our post series regarding COVID-19 vaccination effect. There is much to be explored yet, but I hope this was a good exercise to show the power of programming languages along with open data sources to draw meaningful conclusions for society.
+With this we can finalize our post series regarding COVID-19 vaccination effect. There is much to be explored yet, but I hope this was a good exercise to show the power of programming languages along with open data sources to draw meaningful conclusions for society. See you next time!
 
 # Acknowledgement {-}
 

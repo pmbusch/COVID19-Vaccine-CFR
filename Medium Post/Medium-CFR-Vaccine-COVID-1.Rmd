@@ -1,5 +1,5 @@
 ---
-title: "Exploring the effects of vaccines at country level to reduce the case fatality rate for COVID-19"
+title: "Data-driven decisions: Exploring the efficacy of vaccines to reduce the mortality risk for COVID-19"
 author: "Pablo Busch"
 date: "August 2022"
 output:
@@ -20,22 +20,22 @@ knitr::opts_chunk$set(fig.pos = 'H',
 ```
 
 
-Hi everyone! For my first Medium posts I wanted to do something fun and interesting. In this post I want to provide a real-world example of the power of a programming language (R in this case, but Python or many other will also work to do this type of analysis), in combination with open data-sources to gather evidence and make data-driven decisions!\newline
+Hi everyone! For my first Medium post I wanted to do something fun and interesting, so I decided to use my programming and statistical skills to explore a common public health questions: does the proposed treatment work? In this post I will provide a real-world example of the power of a programming language (R in this case, but Python or many other will also work to do this type of analysis), in combination with open data-sources to gather evidence and make data-driven decisions for public health, or many other areas such as public policy or business!\newline
 
-The purpose of these series of posts is to look at the COVID-19 mortality and vaccination data per country, to check trends and see if we can draw any major conclusions on the efficacy of the vaccines. The posts will be divided into:
+The purpose of these series of posts is to look at the COVID-19 mortality and vaccination data per country, to check trends, relationships and finally to see if we can draw any major conclusions on the efficacy of the vaccines in preventing deaths. The posts will be divided into:
 
 - **Data preparation and exploration**: The purpose of this post is to present the sources of the data and some nice figures to better understand it. All the code is available in [GitHub](https://github.com/pmbusch/COVID19-Vaccine-CFR): starting from loading the data of interest, cleaning it, merging it into a common data frame and creating some nice exploratory figures. 
 - **Statistical model**: With all the data collected and ready for analysis, we can also fit a statistical model to test the effectiveness of vaccines in reducing the mortality rate of COVID-19. This exercise is just for the purpose of learning and showing how an ecological model works, because we already know from multiple scientific studies conducted at the individual level that COVID-19 vaccines have a high efficacy in preventing COVID-19 deaths (see for example [Polack et.al 2020](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)). \newline
 
 The purpose of these series of posts is to show how we can use data to create meaningful figures and statistical models to provide solid fact-based evidence for decision making. All the analysis and figures were done using R, so if you want to explore how everything in this post was created please visit my GitHub page with all the [code](https://github.com/pmbusch/COVID19-Vaccine-CFR).
 
-That being said, let's see what the world data of COVID-19 and vaccination status has to offer us!\newline
+That being said, let's see what the data of COVID-19 and vaccination has to offer us!\newline
 
 # Introduction of the problem
 
 At the present moment (August 2022), the on-going COVID-19 pandemic has taken more than 6 million human lives worldwide since it started on 2020. Novel vaccines were developed at the end of 2020 to reduce the mortality rate associated with this respiratory infectious disease. \newline
 
-There has been a different magnitude and rate of vaccine adoption among countries, which generates diverse data that could help us answer whether countries with higher vaccination rates are associated with lower COVID-19 case fatality rates (CFR). In the next sections I will define more precisely what CFR is, but for now let's define it simply as the total deaths divided by the total cases of COVID-19. The CFR gives us an estimate of the percentage of people that die once they got the disease. Obviously, a lower CFR is desirable. \newline
+There has been a different magnitude and rate of vaccine adoption among countries, which generates diverse data that could help us answer whether countries with higher vaccination rates are associated with lower COVID-19 case fatality rates (CFR). Later uin this post I will define more precisely what CFR is, but for now let's define it simply as the total deaths divided by the total cases of COVID-19. The CFR gives us an estimate of the percentage of people that die of everyone who got the disease. Obviously, a lower CFR is desirable, as it will reduce the death toll of the pandemic. \newline
 
 As mentioned before, it has already been proved in multiple independent scientific studies that vaccines do work in reducing the CFR of COVID-19 
 deaths (see [here](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)), this is just an academic exercise to play with some data and statistical models for a problem in which we already know the answer. \newline
@@ -44,30 +44,27 @@ deaths (see [here](https://www.nejm.org/doi/full/10.1056/nejmoa2034577)), this i
 
 ## COVID-19 Cases and Deaths
 
-Let's start with COVID-19 cases and deaths per country data. As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accessible to the general public ([link to download](https://covid19.who.int/info)). The data contains COVID-19 daily related cases and deaths for a variety of countries. \newline
+Let's start with COVID-19 cases and deaths per country data. As an international organization with the mission to improve human health, the World Health Organization (WHO) has been compiling daily country level data for the COVID-19 pandemic. This data is easily accessible to the general public ([link to download](https://covid19.who.int/info)). The data contains COVID-19 daily new related cases and deaths for at country level. Here are the resolutions of this data set:
 
-Here are the resolutions of this data set:
-
-- Temporal resolution: Daily, from 2020 (January) to 2022 (present)
-- Geographical resolution: Country level (237 different countries) and world region (7 in total)
-- Main outcome to study: Case Fatality Rate (CFR). It is a measurement of amount of patients with COVID-19 that died ($CFR=\frac{Deaths}{Cases}$)
-
+- Temporal resolution: Daily, from 2020 (January) to 2022 (present).
+- Geographical resolution: Country level, 237 different countries divided into 7 world regions.
+- Main outcome to study: **Case Fatality Rate (CFR)**. It is a measurement of amount of patients with COVID-19 that died ($CFR=\frac{Deaths}{Cases}$).
 
 ## Vaccination data
 
-As we are interested in exploring the effect of vaccines on the case fatality rate for COVID-19, we also need vaccination data per country and month. Our World in Data is a data organization that compiles country level data from multiple sources to make research more easy. They have a made a strong effort to compile a database with the total number of people fully vaccinated (people who received all doses prescribed by the vaccination protocol) by date and country. The vaccination data is available [here](https://ourworldindata.org/covid-vaccinations), with a public [GitHub](https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations). Here are the resolutions of the data set: \newline
+As we are interested in exploring the effect of vaccines on the case fatality rate for COVID-19, we also need vaccination data per country and month. Our World in Data is a data organization that compiles country level data from multiple sources to make research more easy. They have a made a strong effort to compile an on-going database with the total number of people fully vaccinated (people who received all doses prescribed by the vaccination protocol) by date and country. The vaccination data is available [here](https://ourworldindata.org/covid-vaccinations), with a public [GitHub](https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations). Here are the resolutions of the data set: \newline
 
 - Temporal resolution: Daily, from 2020 (December) to 2022 (present)
-- Geographical resolution: Country (235 different countries)
-- Explanatory variable: Total people vaccinated per 100 habitats (or percentage of people fully vaccinated)
+- Geographical resolution: Country, 235 different
+- Explanatory variable: Total people vaccinated per 100 habitants (or percentage of people fully vaccinated)
 
-This vaccination metric was chosen for several reasons: It is already normalized by total population in each country, so it is comparable independent of the size of each country. One caveat is that only considers people that have completely fulfill the dosage requirements for the vaccine administered, whether is 1 or 2 doses required. In the scope of this post I will not consider the vaccine company or version (Sinovac, Pfizer, Moderna, among others), but it is a factor that could be considered in future posts. \newline
+I decided to use the percentage of people vaccinated in each country as the main metric due to several reasons: it is simple and it is already normalized by total population in each country, so it is comparable independent of the size of each country. One caveat is that only considers people that have completely fulfill the dosage requirements for the vaccine administered, whether is 1 or 2 doses required. In the scope of this post I will not consider the vaccine company or version (Sinovac, Pfizer, Moderna, among others), but it is a factor that could be considered in future posts. \newline
 
 # Data preparation
 
-We finally finished with all introductions, is time to start introducing all the data. First we need to load both data sets, and merge them based on the country name. This will be the first difficulty, as the country names sometimes differ in the text composition, or sometimes in the geographical delimitation (some countries exist in the WHO data set, but are not present in the OurWorldInData, or viceversa). \newdata
+We finally finished with all introductions, is time to start playing the data. First I had to load both data sets, and merge them based on the country name. This will be the first difficulty, as the country names sometimes differ in the text composition, or sometimes in the geographical delimitation (some countries exist in the WHO data set, but are not present in the OurWorldInData, or viceversa). \newdata
 
-I decided to aggregate all mortality and vaccination data into monthly units. I believe a month is a good aggregation unit that could represent the pandemic status for that country for the CFR (it takes a 30 day data on cases and deaths to estimate the CFR) and for the vaccination status. Other aggregations are possible, such as daily (too much noise) or quarterly (less observations). This is just one of the many modelling decisions that I had to take for this analysis. \newline
+The first step was to aggregate all CFR and vaccination data into monthly averages. I believe that a month is a good aggregation unit that could accurately represent the pandemic status for that country for the CFR (it takes a 30 day data on cases and deaths to estimate the CFR) and for the vaccination status. Other aggregations are possible, such as daily (too much noise) or quarterly (less observations for the statistical model presented in the next post). \newline
 
 ```{r}
 # libraries
@@ -80,7 +77,7 @@ library(flextable) #table format for hhtml
 theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 ```
 
-As the COVID-19 disease usually takes two weeks to fully develop into a mortal disease, a two week shift in the death data (bring backward) was considered to align cases with deaths in the estimation of the monthly CFR for each country. \newline
+As the COVID-19 disease usually takes two weeks to fully develop into a mortal disease, I had to apply a two week shift in the death data (bring backward) to align cases with deaths in the estimation of the monthly CFR for each country. In simple terms, the total deaths of COVID-19 were matched with the total cases that occurred two weeks before, as these patients were likely the ones who died. \newline
 
 ```{r}
 # COVID-19 Data -----
@@ -124,7 +121,7 @@ covid <- covid %>%
       factor(levels =month_levels))
 ```
 
-We also need to clean the data. This is a really important step, as data sets with this amount of observations always have weird things inside. I took a simple approach here and remove all observations with negative deaths or cases. To improve the estimation and robustness of the analysis, the CFR was estimated for each country only in the months in which there were at least 100 cases and more than 10 COVID-19 deaths.
+I also had to clean the data. This is a really important step, as data sets with this amount of observations always have weird things inside. I took a simple approach here and remove all observations with negative deaths or cases (why they were negative cases or deaths in the first place? Mostly because countries don't record perfectly all information and sometimes change the methodology to do so, resulting in "abrupt" corrections to the time series data). To improve the estimation and robustness of the analysis, the CFR was estimated for each country only in the months in which there were at least 100 cases and more than 10 COVID-19 deaths.
 
 ```{r}
 # clean data: remove negative cases and deaths
@@ -244,7 +241,7 @@ df <- vaccination_period %>%
 # df$location %>% unique() %>% length()
 ```
 
-As I mentioned above, I had to join both data sets based on the country name. As the country names sometimes differ by small details, I  manually corrected them to increase the number of matches (for example: United States and United States of America were matched together). The resulting data frame for analysis contains data on 189 different countries, not bad at all! For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each country. \newline
+As I mentioned before, I joined both data sets based on the country name. As the country names sometimes differ by small details, I  manually corrected them to increase the number of matches (for example: United States and United States of America were matched together). The resulting data frame for analysis contains data on 189 different countries, not bad at all! For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each country. \newline
 
 ```{r}
 # Let's create some convenient labels for each world region, and classify the vaccination levels into discrete categories! 
@@ -296,7 +293,7 @@ saveRDS(df,"df.rds")
 
 We finally finished with all the data preparation, thanks for sticking with me to this point. Now comes the exploratory part, which will be much more fun and interactive! \newline
 
-Here are some summary statistics for the whole working data. 
+Here are some summary statistics for the whole final working data, that contains for each country and month the CFR and percentage of vaccinated people. 
 
 ```{r}
 # The code seems daunting, but most of it is to provide a clear table as output, that facilities the reading!
@@ -344,9 +341,9 @@ From this summary table we can already observe some interesting facts:
 - The CFR has a mean value of 1.86%, but a really high variance (the variance is the square of the sd, so in this case will be 8.53%). The range of the metric is also really high, with countries with values of CFR above 75% in a given month.
 - We observe also a high dispersion in the vaccination level across countries, with some countries reaching more than 90 people fully vaccinated per 100 people, and countries with no vaccination at all.
 
-Now is time to make some figures for reach data set, hopefully this can describe better all the valuable information we have!
+Now is time to make some figures for each data set, hopefully this can describe better all the valuable information we have!
 
-## COVID-19 Data
+## COVID-19 CFR: Decreasing over time
 
 We know that the COVID-19 pandemic has evolve over time, so it is worth to take a look at the time series of the COVID-19 data. Our main outcome of interest is the case fatality rate (CFR) for COVID-19. Let's look at the total case fatality rate for COVID-19 for the entire pandemic period. Thanks to [plotly](https://plotly.com/r/) library we can make our figures interactive, so for all figure you can explore each individual point with your mouse pointer! Please take a time to play with the figures and learn new insights! \newline
 
@@ -402,11 +399,11 @@ ggplotly(p_cfr_time)
 
 ```
 
-We observe a higher value in the CFR in the early times of the pandemic, and an important reduction in the most recent times. We also observe important peaks and differences across WHO regions, probably due to different variations of the COVID-19 virus and different climatic seasons (northern and southern hemisphere). Overall we observe a reduction in the recent time, could it be attributed to the COVID-19 vaccines?
+We observe a higher value in the CFR in the early times of the pandemic, and an important reduction in the most recent times. We also observe important peaks and differences across WHO regions, probably due to different variations of the COVID-19 virus and different climatic seasons (northern and southern hemisphere). Overall we observe a reduction in the recent time for all regions, could it be attributed to the COVID-19 vaccines?
 
-## Vaccination Data
+## Vaccination: Inequality in the access to vaccines
 
-The next figure shows the current vaccination status for each country at the end of July 2022. We observe important differences in the access to vaccines across WHO regions, and within countries in the same region (each point in the figure represents a country). For example, Europe present a high vaccination rate, but we observe important differences in the vaccination level within the countries of Europe. The distribution of vaccination levels seems to be two-modal, with some countries with high vaccination and some with really low. \newline
+The next figure shows the current vaccination status for each country at the end of July 2022. We observe important differences in the access to vaccines across world regions, and within countries in the same region (each point in the figure represents a country). For example, Europe present a high vaccination rate, but we observe important differences in the vaccination level within the countries of Europe. The distribution of vaccination levels seems to be two-modal, with some countries with high vaccination and some with really low. \newline
 
 Again, the interactive tool of the figure make it easier to explore the condition for each country!
 
@@ -451,10 +448,9 @@ p_vac_cfr_box <- df %>%
 ggplotly(p_vac_cfr_box) %>% layout(boxmode='group')
 ```
 
-We observe for each region a clear reduction in the CFR for COVID-19 associated with higher vaccination levels (to see this simply compared the purple-low vaccination to the red-high vaccination CFR. This reduction occur both in the average value and in the **variation across countries in each month**. This is interesting, as it has a double effect in reducing the variance of CFR as well: every country with high vaccination rates is in the low spectrum of CFR. Point to the vaccines! \newline
+We observe for each region a clear reduction in the CFR for COVID-19 associated with higher vaccination levels (to see this simply compared the purple-low vaccination to the red-high vaccination CFR). **The reduction in the CFR occur both in the average value and in the variation**. This is interesting, as it has a double effect in reducing the variance of CFR as well: every country with high vaccination rates is in the low spectrum of CFR, not only the average. Point to the vaccines! \newline
 
-
-We do observe that sometimes the middle vaccination categories (blue and green) overlap each other, and in some regions the CFR reduction effect is not clear. This could happen due to several reasons, such as border effects in the classification (the data was discretized a numeric variable into a bin category), noise in the data or higher efficacy of vaccines above certain threshold. Nonetheless, the figure is a great summary of information: it shows both the efficacy of vaccines and the vaccination state per world region. We CAN  observe that some regions are left with low vaccination levels, like Africa. The situation is also true for some countries inside each region. \newline
+We do observe that sometimes the middle vaccination categories (blue and green) overlap each other, and in some regions the CFR reduction effect is not clear. This could happen due to several reasons, such as border effects in the classification (the percentage of vaccinated people was discretized a numeric variable into a bin category), noise in the data or higher efficacy of vaccines above certain threshold. Nonetheless, the figure is a great summary of information: it shows both the efficacy of vaccines and the vaccination state per world region. We can  observe that some regions are left with low vaccination levels, like Africa. The situation is also true for some countries inside each region. \newline
 
 This figure seems to support our main hypothesis of reduction of CFR in countries with higher vaccination rates. In the next post we will construct a statistical model to test this hypothesis formally. For now, I think this great figure is a nice way to end this post with some supporting evidence that vaccines do work and reduce the CFR for COVID-19! \newline
 
