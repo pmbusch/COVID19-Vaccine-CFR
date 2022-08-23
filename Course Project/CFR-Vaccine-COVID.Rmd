@@ -3,6 +3,9 @@ title: "Country Level Effectiveness of Vaccines on COVID-19 Case Fatality Rate"
 author: "Pablo Busch"
 date: "August 2022"
 output:
+  word_document:
+    toc: yes
+    toc_depth: '4'
   html_document:
     df_print: paged
     number_sections: yes
@@ -10,6 +13,9 @@ output:
     toc: yes
     toc_depth: 4
     toc_float: yes
+  pdf_document:
+    toc: no
+    toc_depth: '4'
 ---
 ```{r global_options, include=FALSE}
 # knitr::opts_chunk$set(fig.pos = 'H')
@@ -37,13 +43,13 @@ theme_set(theme_bw(16)+theme(panel.grid.major = element_blank()))
 
 **Method**: Using country and monthly case, death and vaccination data related to COVID-19, a generalized linear model with a negative binomial distribution was fitted, to estimate the effect of vaccination at country level in reducing the case fatality rate (CFR) of COVID-19. The model was controlled by each country heterogeneity and the time development of the COVID-19 disease. \newline
 
-**Results**: A statistical significant relationship was found, higher vaccination rates in a country reduces the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 19% [C.I. 95%: -27%;-11%] lower CFR for COVID-19, countries in the 50%-75% group have a 27% lower CFR [-35%;-18%] and countries in the 75%-100% group have a 37% lower CFR [-48%;-24%]. Additionally, a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 6.56% [C.I. 95%: -8.48%;-4.61%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
+**Results**: A statistical significant relationship was found, higher vaccination rates in a country reduces the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 18% [C.I. 95%: -26%;-10%] lower CFR for COVID-19, countries in the 50%-75% group have a 17% reduction [-26%;-7%] and countries in the 75%-100% group have a 38% reduction [-46%;-27%]. Additionally, a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.32% [C.I. 95%: -6.09%; -2.52%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
 
 **Conclusion**: A negative association between higher vaccination rates and lower CFR for COVID-19 was found. Countries with current low vaccination rates should prioritize a policy to vaccinate their population with the goal to reduce the death toll of the COVID-19 pandemic.
 
 # Introduction
 
-The on-going COVID-19 pandemic has taken more than 4 million human lives worldwide since it started on 2020. Novel vaccines were developed at the end of 2020 to reduce the mortality rate associated with this respiratory infectious disease. There has been a different level of vaccine adoption among countries, so the key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). \newline
+The on-going COVID-19 pandemic has taken more than 6 million human lives worldwide since it started on 2020. Novel vaccines were developed at the end of 2020 to reduce the mortality rate associated with this respiratory infectious disease. There has been a different level of vaccine adoption among countries, so the key question to answer is whether country with higher vaccination rates among their population are associated with lower COVID-19 case fatality rates (CFR). \newline
 
 ## Available Data
 
@@ -54,7 +60,11 @@ As an international organization with the mission to improve human health, the W
 - Outcome to study:
   + Case Fatality Rate (CFR): Measurement of amount of patients with COVID-19 that died ($CFR=\frac{Deaths}{Cases}$)
   
-We are interested in exploring the effect of vaccines on the case fatality rate for COVID-19. Our World in Data is an organization that compiles country level data from multiple sources to make research more easy. They have a made a strong effort to compile a database with the total number of people fully vaccinated (people who received all doses prescribed by the vaccination protocol) by date and country. The vaccination data is available [here](https://ourworldindata.org/covid-vaccinations), with a public [GitHub](https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations). \newline
+We are interested in exploring the effect of vaccines on the case fatality rate for COVID-19. Our World in Data is an organization that compiles country level data from multiple sources to make research more easy. They have a made a strong effort to compile a database with the total number of people fully vaccinated (people who received all doses prescribed by the vaccination protocol) by date and country. The vaccination data is available [here](https://ourworldindata.org/covid-vaccinations), with a public [GitHub](https://github.com/owid/covid-19-data/tree/master/public/data/vaccinations). Here are the resolutions of the data set: \newline
+
+- Temporal resolution: Daily, from 2020 (December) to 2022 (present)
+- Geographical resolution: Country, 235 different
+- Explanatory variable: Total people vaccinated per 100 habitants (or percentage of people fully vaccinated)
 
 For this project the variable to evaluate vaccination status was the total people fully vaccinated per 100 people in the country, or the percentage of people fully vaccinated. This metric was chosen for several reasons:
 
@@ -64,7 +74,7 @@ For this project the variable to evaluate vaccination status was the total peopl
 
 # Background 
 
-The virus causes an inflammatory respiratory stress on the human body. In the two years of the pandemic, approximately 5 million people have died, and more than 400 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A little more than a year ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
+The virus causes an inflammatory respiratory stress on the human body. In the two years of the pandemic, approximately 6 million people have died, and more than 550 million have been infected. Several countries have taken different methods to mitigate the dispersion and impact of the pandemic, such as mobility restrictions (quarantines), social distancing measures, mask enforcement. A little more than a year ago (end of 2020) novel vaccines against COVID-19 were developed, which have proven useful to reduce the death rate due to COVID-19. \newline
 
 Several studies have found a negative association between vaccination and case fatality rate of COVID-19 (Liang et al., 2021; Passarelli-Araujo et al., 2022). In particular, Liang et al. (2021) found that a 10% increase in the vaccination among the population decrease the CFR of COVI-19 by 7.6%. This study uses a panel data consisting of 90 countries over 25 weeks, fitting a country-level random effects model (Liang et al., 2021). The variable for vaccination level was the number of people per 100 habitants that have received at least one dose of the vaccine. The question remains open to study the effect of people fully vaccinated (scheme completed), which this report seeks to answer.
 
@@ -72,7 +82,7 @@ Several studies have found a negative association between vaccination and case f
 
 ## Data preparation
 
-Both datasets (WHO and OurWorldinData) were merged based in the country name, resulting in a match of 167 countries in total. For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each country. \newline
+Both datasets (WHO and OurWorldinData) were merged based in the country name, resulting in a match of 189 countries in total. For these countries we got reliable information on COVID-19 cases and deaths, and vaccination status for a given number of months, that may differ according to the start date of vaccination campaigns in each country. \newline
 
 As the COVID-19 disease usually takes two weeks to fully develop into a mortal disease, a two week shift in the death data (bring backward) was considered to align cases with deaths in the estimation of the monthly CFR for each country. \newline
 
@@ -97,6 +107,7 @@ Where:
 - $\beta_{2,i}$ is the specific effect of the pandemic in each country
   - Note that other potential confounding variables for each country don't need to be included, as the $\beta_2$ coefficient capture the particularities (or heterogeneity) for each country.
 - $\beta_{3,t}$ is the time effect of the pandemic, representing the development of new variants of COVID-19, advances in medicine or treatment or any other variable that may have a time effect on the case fatality rate for COVID-19.
+- $\epsilon_{i,t}$ are the unexplained errors in the model. A model is just a representation of the reality, so it is perfectly fine for our model not to be perfect (I will rather be extremely skeptic of a model that describes reality in a perfect way). We want the errors to be unbiased, that is for them to show no direction or preference, and hopefully to be small as possible. There are other assumptions regarding the error that I will test in the model diagnostics section. 
 
 The outcome variable in the model corresponds to number of deaths normalized by total cases of COVID-19 (the case fatality rate). The number of deaths were transformed using a negative binomial distribution with a logarithmic link function, as the negative binomial is a better fit for count data than the Poisson when there is over-dispersion, as it allows the variance to be different from the mean. The negative binomial distribution have been used in other studies for count data with over-dispersion, such as deaths (Haldar & Sethi, 2020). \newline 
 
@@ -256,6 +267,16 @@ covid <- covid %>%
 # 215 countries match
 
 
+# let's redo the monthly aggregation
+## need to summarize COVID data to periods of time: MONTHS
+covid_period <- covid %>% 
+  group_by(WHO_region,Country,month) %>% 
+  summarise(cases=sum(New_cases),
+            deaths=sum(New_deaths)) %>% ungroup() %>% 
+  filter(cases>99 & deaths>9) %>%  # filter to remove unreliable periods
+  mutate(cfr=deaths/cases)  # we calculate CFR for each given month
+
+
 # join based on location - I join it to the Vaccination, so I can get months with vaccine information for each country
 df <- vaccination_period %>% 
   left_join(covid_period, by=c("location"="Country",
@@ -349,9 +370,9 @@ rm(avg_country_month)
 
 We observe:
 
-- For the 167 countries considered, we have an average number of months with an estimation for the CFR of 10.20. This number will probably be sufficient to draw inferences on the effect of vaccination level on CFR, while controlling for each country characteristics.
-- The CFR has a mean value of 2.12%, with a large variance. The range of the metric is also high, with countries with values of CFR above 75% in a given month.
-- We observe also a high dispersion in the vaccination level across monthly country observation, with some countries reaching more than 90 people fully vaccinated per 100 people.
+- For the 189 countries considered, we have an average number of months with an estimation for the CFR of 12.43, with countries with only 1 month of data and countries with 20 months of data.
+- The CFR has a mean value of 1.86%, but a really high variance (the variance is the square of the sd, so in this case will be 8.53%). The range of the metric is also really high, with countries with values of CFR above 75% in a given month.
+- We observe also a high dispersion in the vaccination level across countries, with some countries reaching more than 90 people fully vaccinated per 100 people, and countries with no vaccination at all.
 
 
 ```{r}
@@ -497,7 +518,9 @@ This figure seems to support our main hypothesis of reduction of CFR in countrie
 
 The following table shows the fitted coefficients for the vaccination level, along with the confidence intervals at 95% level. Diagnostics of this model are presented in the appendix section, but overall they don't support the evidence of over-dispersion, but there is some presence of outliers in the model. \newline
 
-We observe that countries with vaccination rates between 25%-50% have a 19% reduction in the CFR for COVID-19, compared to countries in the 0%-25% vaccination group. This reduction increases with higher vaccination rates, as the reduction for the group 50%-75% is 27% and for the group 75%-100% is 37%.
+We observe that countries with vaccination rates between 25%-50% have a 18% reduction in the CFR for COVID-19, compared to countries in the 0%-25% vaccination group. This reduction is different for higher vaccination rates, as the reduction for the group 50%-75% is 17% and for the group 75%-100% is 37%. \newline
+
+The reduction in CFR is similar for vaccination levels between 25% to 75%, having a huge improvement in levels above 75%. This could be explained due to multiple factors, such as countries with a similar vaccination level near the border of categories (50% vaccination level) or a required threshold in vaccination to get co-benefits that reduce mortality, such as the non-collapse of the health system. 
 
 ```{r}
 # Model
@@ -505,6 +528,7 @@ df_model <- df %>%
   select(deaths,cfr,cases,vaccinated,vaccinated_level,
   vaccinated_level_10,location,month) %>% 
   mutate(location_month=paste0(month,location)) %>% 
+  mutate(location=relevel(location,ref=182)) %>%  #reference country: USA
   na.omit()
 
 # Model with categorical vaccinated level
@@ -593,7 +617,7 @@ f_plot_coef <- function(mod,
 }
 ```
 
-The estimated coefficients represent the relative change with respect to the reference case (Vaccination level between 0% and 25%). We can see important reduction associated with higher vaccination levels, meaning that countries with higher vaccination levels have a lower CFR, an it is an increasing relationship. Also, as the C.I. don't cross the reference line at 1, we can reject the null hypothesis of no effect of vaccination level on CFR at 95% level. The likelihood ratio test also rejected the null hypothesis of no vaccination level effect with a p-value below $1.45*10^{-8}$. \newline
+The estimated coefficients represent the relative change with respect to the reference case (Vaccination level between 0% and 25%). We can see important reduction associated with higher vaccination levels, meaning that countries with higher vaccination levels have a lower CFR, an it is an increasing relationship. Also, as the C.I. don't cross the reference line at 1, we can reject the null hypothesis of no effect of vaccination level on CFR at 95% level. The likelihood ratio test also rejected the null hypothesis of no vaccination level effect with a p-value below $6.026*10^{-9}$. \newline
 
 Let's present also a summary of the other fitted coefficients estimated for each country and for each month:
 
@@ -615,15 +639,15 @@ location_coefficients %>%
   geom_hline(yintercept = 1, linetype="dashed")+
   coord_flip()+
   guides(col=F)+
-  labs(x="WHO Region",col="",y="Relative Risk (RR): Country")
+  labs(x="WHO Region",col="",y="Relative Risk (RR): Country.Reference country: United States")
 ```
 
 ```{r}
 size_coef <- length(model.nb2$coefficients)
 
 # get coefficients for month
-point_month <- exp(model.nb2$coefficients[(size_coef-13):(size_coef)])
-ci_month <- exp(confint(model.nb2,(size_coef-13):(size_coef), level=0.95))
+point_month <- exp(model.nb2$coefficients[(size_coef-18):(size_coef)])
+ci_month <- exp(confint(model.nb2,(size_coef-18):(size_coef), level=0.95))
 
 estimates_month <- data.frame(mid=point_month,
                         lower_bound=ci_month[,1],
@@ -665,7 +689,7 @@ model.nb <- MASS::glm.nb(deaths~vaccinated+location+month+offset(log(cases)),
 # exp(confint(model.nb,"vaccinated", level=0.95)*10)
 ```
 
-The model with vaccination level as numeric variable shows that a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 6.56% [C.I. 95%: -8.48%; -4.61%], a similar result that the one obtained in Liang et al. (2021): -7.6% [C.I. 95%: -12.6%; -2.7%]. \newline
+The model with vaccination level as numeric variable shows that a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.32% [C.I. 95%: -6.09%; -2.52%], a similar result that the one obtained in Liang et al. (2021): -7.6% [C.I. 95%: -12.6%; -2.7%]. \newline
 
 Next is presented the model with 10 categories of vaccination level and the model only considering cases where the CFR was below 10%, to remove the presence of outliers. 
 
@@ -722,7 +746,7 @@ library(lme4)
 #                                  month+offset(log(cases)),
 #                                data=df_model)
 # saveRDS(model_random,"randomModel.rds")
-model_random <- read_rds("randomModel.rds")
+model_random <- read_rds("../randomModel.rds")
 
 # nobs(model_random)
 # ranef(model_random)
@@ -784,7 +808,7 @@ p_random <- estimates %>%
 # # output
 
 # saveRDS(bres,"boot.rds")
-bres <- readRDS ("boot.rds")
+bres <- readRDS ("../boot.rds")
 
 boot_estimates <-
   data.frame(mean_est=colMeans(exp(bres)),
@@ -822,7 +846,7 @@ The model suffers from some inherent problems, that future studies could explore
 
 # Conclusion
 
-A statistical significant relationship was found, a higher vaccination rate reduce the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 19% [C.I. 95%: -27%;-11%] reduction in the CFR for COVID-19, countries in the 50%-75% group a 27% reduction [-35%;-18%] and countries in the 75%-100% group a 37% reduction [-48%;-24%]. Additionally, a a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 6.56% [C.I. 95%: -8.48%;-4.61%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
+A statistical significant relationship was found, a higher vaccination rate reduce the relative risk of COVID-19. In comparison to the group with 0%-25% vaccinated people, countries in the 25%-50% group have a 18% [C.I. 95%: -26%;-10%] reduction in the CFR for COVID-19, countries in the 50%-75% group a 17% reduction [-26%;-7%] and countries in the 75%-100% group a 38% reduction [-46%;-27%]. Additionally, a a 10% increase in the percentage of vaccinated people results in a reduction of the COVID-19 CFR of 4.32% [C.I. 95%: -6.09%; -2.52%]. Potential limitations of the analysis are due to the potential presence of time and spatial autocorrelation in the data. \newline
 
 There is strong statistical evidence pointing in the association of countries with higher COVID-19 vaccination rates and lower case mortality rate due to COVID-19. This implies that each country with current lower vaccination rates should promote a vaccination strategy in this year to reduce the death burden of the on-going COVID-19 pandemic.
 
